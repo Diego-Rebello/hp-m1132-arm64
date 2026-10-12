@@ -4,21 +4,21 @@ LDFLAGS = -lcups -lcupsimage
 
 JBIG_SRC = src/jbig.c src/jbig_ar.c
 
-all: rastertoxqx xqxdecode
+all: rastertozjs zjsdecode
 
-rastertoxqx: src/rastertoxqx.c $(JBIG_SRC)
+rastertozjs: src/rastertozjs.c $(JBIG_SRC)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-xqxdecode: src/xqxdecode.c $(JBIG_SRC)
+zjsdecode: src/zjsdecode.c $(JBIG_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
 
 check: all
-	@for b in rastertoxqx xqxdecode; do \
+	@for b in rastertozjs zjsdecode; do \
 	  a=$$(lipo -archs $$b); echo "$$b: $$a"; \
 	  [ "$$a" = "arm64" ] || { echo "ERRO: $$b nao e arm64"; exit 1; }; \
 	done
 
 clean:
-	rm -f rastertoxqx xqxdecode
+	rm -f rastertozjs zjsdecode
 
 .PHONY: all check clean

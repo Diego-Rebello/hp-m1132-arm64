@@ -12,42 +12,121 @@ typedef uint16_t	WORD;
 typedef uint8_t		BYTE;
 
 typedef enum {
-    XQX_START_DOC	= 1,
-    XQX_END_DOC		= 2,
-    XQX_START_PAGE	= 3,
-    XQX_END_PAGE	= 4,
-    XQX_START_PLANE	= 5,
-    XQX_END_PLANE	= 6,
-    XQX_JBIG		= 7,
+    ZJT_START_DOC	= 0,
+    ZJT_END_DOC		= 1,
+    ZJT_START_PAGE	= 2,
+    ZJT_END_PAGE	= 3,
+    ZJT_JBIG_BIH	= 4,	// Bi-level Image Header
+    ZJT_JBIG_BID	= 5,	// Bi-level Image Data blocks
+    ZJT_END_JBIG	= 6,
+    ZJT_SIGNATURE	= 7,
+    ZJT_RAW_IMAGE	= 8,	// full uncompressed plane follows
+    ZJT_START_PLANE	= 9,
+    ZJT_END_PLANE	=10,
 
-    // XQX_2600N_PAUSE	=11,
-    // XQX_2600N	=12,
-} XQX_TYPE;
+    ZJT_2600N_PAUSE	=11,
+    ZJT_2600N		=12,	// hplj2600n 
 
-typedef struct _XQX_HEADER {
+    ZJT_ZX_0x0d		=0x0d,
+    ZJT_ZX_0x0e		=0x0e,
+    ZJT_ZX_0x0f		=0x0f
+} ZJ_TYPE;
+
+typedef struct _ZJ_HEADER {
+    DWORD size;           /*  total record size, includes sizeof(ZJ_HEADER) */
     DWORD type;           /*  ZJ_TYPE */
-    DWORD items;          /*  total record size, includes sizeof(ZJ_HEADER) */
-} XQX_HEADER;
+    DWORD items;          /*  use varies by Type, e.g. item count */
+    WORD reserved;        /*  later to be sumcheck or CRC */
+    WORD signature;       /*  'ZZ' */
+} ZJ_HEADER;
 
 typedef enum {
-    XQXI_DMDUPLEX	= 0x10000002,	// from DEVMODE (DMBIN?)
-    XQXI_DMDEFAULTSOURCE= 0x20000006,	// from DEVMODE (DMBIN?)
-    XQXI_DMMEDIATYPE	= 0x20000000,	// from DEVMODE
-    XQXI_RESOLUTION_X	= 0x20000008,	// dots per inch
-    XQXI_RESOLUTION_Y	= 0x20000009,
-    XQXI_RASTER_X	= 0x2000000d,	// dots per inch
-    XQXI_RASTER_Y	= 0x2000000e,
-    XQXI_VIDEO_BPP	= 0x2000000a,	// video bits per pixel
-    XQXI_VIDEO_X	= 0x2000000f,	// video dimensions
-    XQXI_VIDEO_Y	= 0x20000010,
-    XQXI_ECONOMODE	= 0x20000011,	// HP's "EconoMode", 0=OFF, 1=ON
-    XQXI_DMPAPER	= 0x20000001,
-    XQXI_DUPLEX_PAUSE	= 0x20000012,	// 0,1=front side; 2-3=back side
-    XQXI_BIH		= 0x40000002,
-    XQXI_END		= 0x80000001,
+/*
+ * 0x0000-0x7FFF : Zenographics reserved
+ */
+    /* for START_DOC */
+    ZJI_PAGECOUNT	= 0,	// number of ZJT_START_PAGE / ZJT_END_PAGE 
+				// pairs, if known
+    ZJI_DMCOLLATE	= 1,	// from DEVMODE
+    ZJI_DMDUPLEX	= 2,	// from DEVMODE
+  
+    /* for START_PAGE */
+    ZJI_DMPAPER		= 3,	// from DEVMODE
+    ZJI_DMCOPIES	= 4,	// from DEVMODE
+    ZJI_DMDEFAULTSOURCE	= 5,	// from DEVMODE (DMBIN?)
+    ZJI_DMMEDIATYPE	= 6,	// from DEVMODE
+    ZJI_NBIE		= 7,	// number of Bi-level Image Entities,
+				//  e.g. 1 for monochrome, 4 for color
+    ZJI_RESOLUTION_X	= 8,	// dots per inch
+    ZJI_RESOLUTION_Y	= 9,
+    ZJI_OFFSET_X	=10,	// upper left corner
+    ZJI_OFFSET_Y	=11,
+    ZJI_RASTER_X	=12,	// raster dimensions
+    ZJI_RASTER_Y	=13,
+  
+    ZJI_COLLATE		=14,	// asks for collated copies
+    ZJI_QUANTITY	=15,	// copy count
+
+    ZJI_VIDEO_BPP	=16,	// video bits per pixel
+    ZJI_VIDEO_X		=17,	// video dimensions (if different than raster)
+    ZJI_VIDEO_Y		=18,
+    ZJI_INTERLACE	=19,	// 0 or 1
+    ZJI_PLANE		=20,	// Plane number, 1=C, 2=M, 3=Y, 4=K
+    ZJI_PALETTE		=21,	// translation table (dimensions in item type)
+    ZJI_RET		=22,	// HP's Resolution Enhancement Technology
+    ZJI_ECONOMODE	=23,	// HP's "EconoMode", 0=OFF, 1=ON
+
+    ZJI_BITMAP_TYPE	=0x65,	// hp2600: ?
+    ZJI_JBIG_BIH	=0x66,	// Bi-level Image Header
+    ZJI_BITMAP_PIXELS	=0x68,	// hp2600: ?
+    ZJI_INCRY		=0x69,	// Incremental Y
+    ZJI_BITMAP_BPP	=0x6a,	// hp2600: ?
+    ZJI_BITMAP_STRIDE	=0x6b,	// hp2600: ?
+
+    ZJI_ZX_0x6c		=0x6c,	// ZX: color order ???
+				// cmyk=04030201, rgb=0b0a09, mono=0c
+    ZJI_ZX_COLOR_OPT	=0x6e,	// ZX: Color Options. 1=mono, 3=rgb, 4=cmyk
+    ZJI_ZX_0x6f		=0x6f,	// ZX: ???
+
+    ZJI_PAD		=99,	// bogus item type for padding stream
+
+/*
+ * 0x8000-0x80FF : Item tags for QMS specific features.
+ */ 
+    ZJI_QMS_FINEMODE	= 0x8000,	// for 668, 671
+    ZJI_QMS_OUTBIN	= 0x8001,	// for 671 output bin
+
+/*
+ * 0x8100-0x81FF : Item tags for Minolta specific features.
+ */
+    /* for START_DOC */
+    ZJI_MINOLTA_USERNAME	= 0x810e,	// C string
+    ZJI_MINOLTA_FILENAME	= 0x8115,	// C string
+    // Also 8100-810F; meanings unknown
+
+    /* for START_PAGE */
+    ZJI_MINOLTA_PAGE_NUMBER	= 0x8110,	// Number of this page
+    // Also 8111, 8116-811D; meanings unknown
+    ZJI_MINOLTA_CUSTOM_X	= 0x8113,	// Custom Page Width
+    ZJI_MINOLTA_CUSTOM_Y	= 0x8114,	// Custom Page Height
+
+    /* for END_PAGE */
+    // Also 8101, 8110; meanings unknown
+
+/*
+ * 0x8200-0x82FF : Item tags for the next OEM specific features.
+ */
+    ZJI_HP_CDOTS		= 0x8200,	// Cyan Dots?
+    ZJI_HP_MDOTS		= 0x8201,	// Magenta Dots?
+    ZJI_HP_YDOTS		= 0x8202,	// Yellow Dots?
+    ZJI_HP_KDOTS		= 0x8203,	// Black Dots?
+    ZJI_HP_CWHITE		= 0x8204,	// Cyan White Dots?
+    ZJI_HP_MWHITE		= 0x8205,	// Magenta White Dots?
+    ZJI_HP_YWHITE		= 0x8206,	// Yellow White Dots?
+    ZJI_HP_KWHITE		= 0x8207,	// Black White Dots?
 
     ZJI_LAST
-} XQX_ITEM;
+} ZJ_ITEM;
 
 typedef enum
 {
@@ -59,32 +138,33 @@ typedef enum
 } DMDUPLEX;
 
 typedef enum {
-    DMBIN_TRAY1		= 1,
+    DMBIN_UPPER		= 1,
+    DMBIN_ONLYONE	= 1,
+    DMBIN_LOWER		= 2,
+    DMBIN_MIDDLE	= 3,
     DMBIN_MANUAL	= 4,
+    DMBIN_ENVELOPE	= 5,
+    DMBIN_ENVMANUAL	= 6,
     DMBIN_AUTO		= 7,
+    DMBIN_TRACTOR	= 8,
+    DMBIN_SMALLFMT	= 9,
+    DMBIN_LARGEFMT	=10,
+    DMBIN_LARGECAPACITY	=11,
+    DMBIN_CASSETTE	=14,
+    DMBIN_FORMSOURCE	=15
 } DM_BIN;
 
 typedef enum {
-    DMMEDIA_UNSPECIFIED		= 0,	// Unspecified
-    DMMEDIA_PLAIN		= 1,	// Plain paper
-    DMMEDIA_HP_MULTIPURPOSE	= 301,
-    DMMEDIA_HP_OFFICE		= 300,
-    DMMEDIA_HP_ALL_IN_ONE	= 303,
-    DMMEDIA_HP_LASERJET		= 302,
-    DMMEDIA_HP_PREMIUM_LASERJET	= 304,
-    DMMEDIA_PREPRINTED		= 514,
-    DMMEDIA_LETTERHEAD		= 513,	// Letterhead
-    DMMEDIA_TRANSPARENCY	= 2,	// Transparency
-    DMMEDIA_PREPUNCHED		= 515,
-    DMMEDIA_LABELS		= 265,	// Labels
-    DMMEDIA_BOND		= 260,
-    DMMEDIA_RECYCLED		= 516,
-    DMMEDIA_COLOR		= 512,
-    DMMEDIA_LIGHT		= 258,
-    DMMEDIA_HEAVY		= 262,
-    DMMEDIA_CARDSTOCK		= 261,
-    DMMEDIA_ENVELOPE		= 267,	// Envelope
-    DMMEDIA_ROUGH		= 263,
+    DMMEDIA_STANDARD	= 1,	// Standard paper
+    DMMEDIA_TRANSPARENCY= 2,	// Transparency
+    DMMEDIA_GLOSSY	= 3,	// Glossy paper
+    DMMEDIA_USER	= 4,	// Device-specific media start here
+
+    DMMEDIA_ENVELOPE	= 0x101, // Envelope
+    DMMEDIA_LETTERHEAD	= 0x103, // Letterhead
+    DMMEDIA_THICK_STOCK	= 0x105, // Thick Stock
+    DMMEDIA_POSTCARD	= 0x106, // Postcard
+    DMMEDIA_LABELS	= 0x107, // Labels
 } DMMEDIA;
 
 typedef enum {
@@ -169,15 +249,29 @@ typedef enum {
     DMPAPER_A3_EXTRA_TRANSVERSE	   =68,	// A3 Extra Transverse 322 x 445 mm
 } DMPAPER;
 
-typedef struct _XQX_ITEM_HEADER {
-    DWORD type;		// type
-    DWORD size;		// total record size following
-} XQX_ITEM_HEADER;
+typedef enum {
+    ZJIT_UINT32	= 1,	// unsigned integer
+    ZJIT_INT32	= 2,    // signed integer
+    ZJIT_STRING	= 3,    // byte string, NUL-terminated, DWORD-aligned
+    ZJIT_BYTELUT= 4     // DWORD count followed by that many byte entries
+} ZJ_ITEM_TYPE;
 
-typedef struct _XQX_ITEM_UINT32 {
-    XQX_ITEM_HEADER	header;
+typedef struct _ZJ_ITEM_HEADER {
+    DWORD size;		// total record size, includes sizeof(ZJ_ITEM_HEADER)
+    WORD  item;		//  ZJ_ITEM
+    BYTE  type;		//  ZJ_ITEM_TYPE
+    BYTE  param;	//  general use
+} ZJ_ITEM_HEADER;
+
+typedef struct _ZJ_ITEM_UINT32 {
+    ZJ_ITEM_HEADER	header;
     DWORD		value;
-} XQX_ITEM_UINT32;
+} ZJ_ITEM_UINT32;
+
+typedef struct _ZJ_ITEM_INT32 {
+    ZJ_ITEM_HEADER	header;
+    int32_t		value;
+} ZJ_ITEM_INT32;
 
 typedef union _SWAP_32{
     char		byte[sizeof(uint32_t)];

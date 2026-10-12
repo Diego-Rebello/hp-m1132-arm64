@@ -7,7 +7,7 @@ Filtro CUPS **nativo arm64** para a HP LaserJet Professional M1132 MFP no macOS 
 ## Compilar
 
 ```sh
-make check   # compila rastertoxqx e xqxdecode e confere que são arm64
+make check   # compila rastertozjs e zjsdecode e confere que são arm64
 ```
 
 Créditos e licença: [`NOTICE.md`](NOTICE.md) (GPL v2+).
