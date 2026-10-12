@@ -20,12 +20,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
 #include <cups/cups.h>
 #include <cups/raster.h>
+#include <cups/ppd.h>
 #include "jbig.h"
 #include "zjs.h"
 
@@ -35,11 +37,18 @@
 #define MODEL_HP_PRO    2
 #define MODEL_HP_PRO_CP 3
 
-/* hp-m1132-arm64: default model is set at build time (see Makefile),
- * since CUPS does not pass PPD defaults to the filter in argv[5]. */
+/* hp-m1132-arm64: the model comes from *cupsModelNumber in the PPD ($PPD);
+ * DEFAULT_MODEL is only the fallback when there is no PPD (offline tests). */
 #ifndef DEFAULT_MODEL
-#define DEFAULT_MODEL   MODEL_HP1020
+#define DEFAULT_MODEL   MODEL_HP_PRO
 #endif
+#if DEFAULT_MODEL < MODEL_2300DL || DEFAULT_MODEL > MODEL_HP_PRO_CP
+#error "DEFAULT_MODEL must be 0..3"
+#endif
+
+/* hp-m1132-arm64: the ppd* API is deprecated in libcups but still the only
+ * way for a raster filter to see the queue's PPD defaults. */
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 /* ---------- ZJS output helpers ---------- */
 
@@ -471,8 +480,12 @@ map_paper_code(const char *name)
 }
 
 static int
-map_media_code(const char *media, int model)
+map_media_code(const char *media, unsigned cups_media_type, int model)
 {
+    /* hp-m1132-arm64: the PPD sets cupsMediaType to HP's own codes */
+    if (model >= MODEL_HP1020 && cups_media_type > 0)
+        return cups_media_type;
+
     if (!media || !media[0])
         return DMMEDIA_STANDARD;
 
@@ -489,7 +502,9 @@ map_media_code(const char *media, int model)
         if (strcmp(media, "Cardstock") == 0)     return 261;
         if (strcmp(media, "Labels") == 0)        return 265;
         if (strcmp(media, "Rough") == 0)         return 263;
-        if (strcmp(media, "Heavy") == 0)         return 261;
+        if (strcmp(media, "MidWeight") == 0)     return 282;
+        if (strcmp(media, "Heavy") == 0)         return 262;
+        if (strcmp(media, "ExtraHeavy") == 0)    return 283;
         if (strcmp(media, "Light") == 0)         return 258;
         if (strcmp(media, "Vellum") == 0)        return 273;
         if (strcmp(media, "Color") == 0)         return 512;
@@ -524,33 +539,67 @@ map_source_code(unsigned media_position)
 
 /* ---------- CUPS options parsing ---------- */
 
+static int
+is_true(const char *val)
+{
+    return val && (!strcasecmp(val, "true") || !strcasecmp(val, "on") ||
+                   !strcasecmp(val, "yes") || !strcmp(val, "1"));
+}
+
 static void
-parse_options(const char *options, int *density, int *economode, int *model)
+set_density(const char *val, int *density)
+{
+    int d = val ? atoi(val) : 0;
+    if (d >= 1 && d <= 5)
+        *density = d;
+}
+
+/* hp-m1132-arm64: start from the PPD defaults (CUPS only puts explicitly
+ * set job options in argv[5]), then apply the job options on top. */
+static void
+parse_options(const char *options, int *density, int *economode, int *model,
+              int *collate)
 {
     cups_option_t *opts = NULL;
     int num_opts;
     const char *val;
+    ppd_file_t *ppd;
+    ppd_choice_t *choice;
 
-    if (!options || !options[0])
-        return;
+    num_opts = cupsParseOptions(options ? options : "", 0, &opts);
 
-    num_opts = cupsParseOptions(options, 0, &opts);
-
-    val = cupsGetOption("Density", num_opts, opts);
-    if (val)
+    if ((val = getenv("PPD")) != NULL && (ppd = ppdOpenFile(val)) != NULL)
     {
-        int d = atoi(val);
-        if (d >= 1 && d <= 5)
-            *density = d;
+        ppdMarkDefaults(ppd);
+        cupsMarkOptions(ppd, num_opts, opts);
+
+        if (ppd->model_number >= MODEL_2300DL &&
+            ppd->model_number <= MODEL_HP_PRO_CP)
+            *model = ppd->model_number;
+        if ((choice = ppdFindMarkedChoice(ppd, "Density")) != NULL)
+            set_density(choice->choice, density);
+        if ((choice = ppdFindMarkedChoice(ppd, "EconoMode")) != NULL)
+            *economode = is_true(choice->choice);
+        if ((choice = ppdFindMarkedChoice(ppd, "Collate")) != NULL)
+            *collate = is_true(choice->choice);
+
+        ppdClose(ppd);
     }
+
+    /* Job options, also used directly when running without a PPD */
+    set_density(cupsGetOption("Density", num_opts, opts), density);
+
+    if ((val = cupsGetOption("EconoMode", num_opts, opts)) != NULL)
+        *economode = is_true(val);
 
     val = cupsGetOption("Quality", num_opts, opts);
     if (val && strcmp(val, "draft") == 0)
         *economode = 1;
 
-    val = cupsGetOption("EconoMode", num_opts, opts);
-    if (val && strcmp(val, "on") == 0)
-        *economode = 1;
+    if ((val = cupsGetOption("Collate", num_opts, opts)) != NULL)
+        *collate = is_true(val);
+    if ((val = cupsGetOption("multiple-document-handling", num_opts, opts)) != NULL)
+        *collate = strcmp(val, "separate-documents-uncollated-copies") != 0;
 
     val = cupsGetOption("Model", num_opts, opts);
     if (val)
@@ -586,6 +635,12 @@ main(int argc, char *argv[])
     int                 density = 3;
     int                 economode = 0;
     int                 model = DEFAULT_MODEL;
+    int                 collate = 0;
+    int                 job_copies;
+    FILE                *pfp = stdout;  /* where pages go */
+    char                *docbuf = NULL; /* collated copies: pages in memory */
+    size_t              docsize = 0;
+    int                 doc_copies = 1;
 
     if (argc < 6 || argc > 7)
     {
@@ -597,7 +652,8 @@ main(int argc, char *argv[])
     signal(SIGTERM, cancel_handler);
     signal(SIGPIPE, SIG_IGN);
 
-    parse_options(argv[5], &density, &economode, &model);
+    parse_options(argv[5], &density, &economode, &model, &collate);
+    job_copies = atoi(argv[4]);
 
     if (argc == 7)
     {
@@ -645,7 +701,24 @@ main(int argc, char *argv[])
         cupsBpl = header.cupsBytesPerLine;
         resX    = header.HWResolution[0];
         resY    = header.HWResolution[1];
-        copies  = header.NumCopies > 0 ? header.NumCopies : 1;
+        /* hp-m1132-arm64: with cupsManualCopies False the count may only
+         * be in argv[4]; never multiply the two. */
+        copies  = header.NumCopies > 1 ? (int)header.NumCopies
+                : job_copies > 1 ? job_copies : 1;
+
+        /* The printer only makes uncollated copies (1,1,2,2), so for
+         * collated copies keep the pages in memory and repeat them. */
+        if (page == 1 && collate && copies > 1)
+        {
+            pfp = open_memstream(&docbuf, &docsize);
+            if (pfp)
+                doc_copies = copies;
+            else
+            {
+                fprintf(stderr, "ERROR: rastertozjs: cannot buffer collated copies\n");
+                pfp = stdout;
+            }
+        }
 
         fprintf(stderr, "DEBUG: rastertozjs: page %d, %ux%u pixels, %dx%d dpi, model %d\n",
                 page, cupsW, cupsH, resX, resY, model);
@@ -663,7 +736,7 @@ main(int argc, char *argv[])
         if (bpp < 1) bpp = 1;
 
         paperCode  = map_paper_code(header.cupsPageSizeName);
-        mediaCode  = map_media_code(header.MediaType, model);
+        mediaCode  = map_media_code(header.MediaType, header.cupsMediaType, model);
         sourceCode = map_source_code(header.MediaPosition);
 
         realWidth = cupsW;
@@ -707,16 +780,29 @@ main(int argc, char *argv[])
         jbg_enc_out(&se);
         jbg_enc_free(&se);
 
-        start_page(stdout, model, 600, resY, bpp,
+        start_page(pfp, model, 600, resY, bpp,
                    jbigW, cupsH, realWidth,
                    paperCode, mediaCode, sourceCode,
-                   copies, economode);
-        write_plane(4, &chain, stdout, model); /* plane 4 = K for mono */
-        end_page(stdout, model);
+                   pfp != stdout ? 1 : copies, economode);
+        write_plane(4, &chain, pfp, model); /* plane 4 = K for mono */
+        end_page(pfp, model);
 
         free(buf);
 
-        fprintf(stderr, "PAGE: %d %d\n", page, copies);
+        fprintf(stderr, "PAGE: %d %d\n", page,
+                pfp != stdout ? doc_copies : copies);
+    }
+
+    if (pfp != stdout)
+    {
+        int c;
+
+        fclose(pfp);
+        fprintf(stderr, "DEBUG: rastertozjs: %d collated copies of %d page(s)\n",
+                doc_copies, page);
+        for (c = 0; c < doc_copies && !Canceled; c++)
+            fwrite(docbuf, 1, docsize, stdout);
+        free(docbuf);
     }
 
     end_doc(stdout, model);

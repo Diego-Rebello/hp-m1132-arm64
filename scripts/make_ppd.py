@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+"""Gera o PPD da M1132 a partir de uma lista unica de tamanhos e opcoes.
+
+PageSize, PageRegion, ImageableArea e PaperDimension saem todos de SIZES,
+com a mesma margem (MARGIN) em todos os lados. Para mudar a margem ou
+acrescentar um tamanho, edite aqui e rode `make ppd`.
+
+Uso: python3 scripts/make_ppd.py > ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd
+"""
+import sys
+
+# Margem em pt nos 4 lados (12 pt = margem do hp1130.ppd da HP).
+MARGIN = 12
+
+# (nome PPD, rotulo, largura pt, altura pt). O nome tem de existir em
+# map_paper_code() do filtro; qualquer outro vira Letter no fluxo ZJS.
+SIZES = [
+    ("A4", "A4", 595.28, 841.89),
+    ("Letter", "US Letter", 612, 792),
+    ("Legal", "US Legal", 612, 1008),
+    ("Executive", "Executive", 522, 756),
+    ("A5", "A5", 419.53, 595.28),
+    ("A6", "A6", 297.64, 419.53),
+    ("B5", "B5 (JIS)", 515.91, 728.5),
+    ("Postcard", "Postcard", 283.46, 419.53),
+    ("Env10", "Envelope #10", 297, 684),
+    ("EnvDL", "Envelope DL", 311.81, 623.62),
+    ("EnvC5", "Envelope C5", 459.21, 649.13),
+    ("EnvB5", "Envelope B5", 498.9, 708.66),
+    ("EnvMonarch", "Envelope Monarch", 279, 540),
+]
+DEFAULT_SIZE = "A4"
+
+# (nome, rotulo, cupsMediaType). Os codigos sao os do hp1130.ppd da HP; o
+# filtro manda cupsMediaType direto como ZJI_DMMEDIATYPE.
+MEDIA = [
+    ("Plain", "Plain Paper", 1),
+    ("Light", "Light 60-74g", 258),
+    ("MidWeight", "Mid-Weight 96-110g", 282),
+    ("Heavy", "Heavy 111-130g", 262),
+    ("ExtraHeavy", "Extra Heavy 131-175g", 283),
+    ("Transparency", "Transparency", 2),
+    ("Labels", "Labels", 265),
+    ("Envelope", "Envelope", 267),
+    ("Letterhead", "Letterhead", 513),
+    ("Recycled", "Recycled", 516),
+    ("Rough", "Rough", 263),
+]
+DEFAULT_MEDIA = "Plain"
+
+HEADER = """\
+*PPD-Adobe: "4.3"
+*% HP LaserJet Professional M1132 MFP: native arm64 CUPS driver (rastertozjs, ZjStream Model 2)
+*% https://github.com/Diego-Rebello/hp-m1132-arm64 - GPL-2.0-or-later
+*% Gerado por scripts/make_ppd.py; nao edite a mao.
+*FormatVersion: "4.3"
+*FileVersion: "1.1"
+*LanguageVersion: English
+*LanguageEncoding: ISOLatin1
+*PCFileName: "M1132A64.PPD"
+*Manufacturer: "HP"
+*Product: "(HP LaserJet Professional M1132 MFP)"
+*ModelName: "HP LaserJet Professional M1132 MFP arm64"
+*ShortNickName: "HP LaserJet M1132 MFP arm64"
+*NickName: "HP LaserJet Professional M1132 MFP, arm64 rastertozjs 1.1"
+*PSVersion: "(3010.000) 0"
+*LanguageLevel: "3"
+*ColorDevice: False
+*DefaultColorSpace: Gray
+*FileSystem: False
+*Throughput: "18"
+*LandscapeOrientation: Plus90
+*TTRasterizer: Type42
+*1284DeviceID: "MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;CMD:ZJS,PJL,ACL;"
+*cupsVersion: 2.2
+*% O filtro le o Model daqui (ppd->model_number) e os padroes abaixo via $PPD.
+*cupsModelNumber: 2
+*cupsManualCopies: False
+*cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"
+*cupsFilter: "application/vnd.cups-raster 0 /Library/Printers/hp-m1132-arm64/rastertozjs"
+"""
+
+FIXED_OPTIONS = """\
+*OpenUI *ColorModel/Color Mode: PickOne
+*OrderDependency: 10 AnySetup *ColorModel
+*DefaultColorModel: Gray
+*ColorModel Gray/Grayscale: "<</cupsColorOrder 0/cupsColorSpace 3/cupsBitsPerColor 1>>setpagedevice"
+*CloseUI: *ColorModel
+
+*OpenUI *Resolution/Resolution: PickOne
+*OrderDependency: 10 AnySetup *Resolution
+*DefaultResolution: 600dpi
+*Resolution 600dpi/600 DPI: "<</HWResolution[600 600]>>setpagedevice"
+*CloseUI: *Resolution
+
+*% Copias: a impressora faz as copias sem agrupar (ZJI_DMCOPIES); com
+*% Collate=True o filtro repete o documento inteiro.
+*OpenUI *Collate/Collate Copies: Boolean
+*OrderDependency: 10 AnySetup *Collate
+*DefaultCollate: True
+*Collate True/On: "<</Collate true>>setpagedevice"
+*Collate False/Off: "<</Collate false>>setpagedevice"
+*CloseUI: *Collate
+
+*% Density e EconoMode: o filtro le o padrao do PPD e aplica as opcoes do job.
+*OpenUI *Density/Print Density: PickOne
+*OrderDependency: 20 AnySetup *Density
+*DefaultDensity: 3
+*Density 1/1 (Lightest): ""
+*Density 2/2: ""
+*Density 3/3 (Normal): ""
+*Density 4/4: ""
+*Density 5/5 (Darkest): ""
+*CloseUI: *Density
+
+*OpenUI *EconoMode/EconoMode (Toner Save): Boolean
+*OrderDependency: 20 AnySetup *EconoMode
+*DefaultEconoMode: False
+*EconoMode True/On: ""
+*EconoMode False/Off: ""
+*CloseUI: *EconoMode
+
+*DefaultFont: Courier
+*Font Courier: Standard "(002.004S)" Standard ROM
+*% End of PPD
+"""
+
+
+def num(x):
+    """Formata pt com ate 2 casas, sem zeros sobrando (583.28, 600, 12)."""
+    return ("%.2f" % x).rstrip("0").rstrip(".")
+
+
+def page_option(keyword):
+    out = [
+        "*OpenUI *%s/Media Size: PickOne" % keyword,
+        "*OrderDependency: 10 AnySetup *%s" % keyword,
+        "*Default%s: %s" % (keyword, DEFAULT_SIZE),
+    ]
+    for name, label, w, h in SIZES:
+        out.append('*%s %s/%s: "<</PageSize[%s %s]/ImagingBBox null>>setpagedevice"'
+                   % (keyword, name, label, num(w), num(h)))
+    out.append("*CloseUI: *%s" % keyword)
+    return out
+
+
+def main():
+    names = [s[0] for s in SIZES]
+    assert len(set(names)) == len(names), "tamanho repetido em SIZES"
+    assert DEFAULT_SIZE in names and DEFAULT_MEDIA in [m[0] for m in MEDIA]
+
+    lines = [HEADER]
+    lines += page_option("PageSize") + [""]
+    lines += page_option("PageRegion") + [""]
+
+    lines.append("*DefaultImageableArea: %s" % DEFAULT_SIZE)
+    for name, label, w, h in SIZES:
+        lines.append('*ImageableArea %s/%s: "%s %s %s %s"'
+                     % (name, label, num(MARGIN), num(MARGIN),
+                        num(w - MARGIN), num(h - MARGIN)))
+    lines.append("*DefaultPaperDimension: %s" % DEFAULT_SIZE)
+    for name, label, w, h in SIZES:
+        lines.append('*PaperDimension %s/%s: "%s %s"' % (name, label, num(w), num(h)))
+    lines.append("")
+
+    lines += [
+        "*OpenUI *MediaType/Media Type: PickOne",
+        "*OrderDependency: 10 AnySetup *MediaType",
+        "*DefaultMediaType: %s" % DEFAULT_MEDIA,
+    ]
+    for name, label, code in MEDIA:
+        lines.append('*MediaType %s/%s: "<</MediaType(%s)/cupsMediaType %d>>setpagedevice"'
+                     % (name, label, name, code))
+    lines += ["*CloseUI: *MediaType", ""]
+
+    lines.append(FIXED_OPTIONS)
+    sys.stdout.write("\n".join(lines))
+
+
+if __name__ == "__main__":
+    main()

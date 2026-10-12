@@ -3,11 +3,18 @@ CFLAGS  = -Wall -O2 -arch arm64 -Isrc
 LDFLAGS = -lcups -lcupsimage
 
 JBIG_SRC = src/jbig.c src/jbig_ar.c
+PPD      = ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd
 
-all: rastertozjs zjsdecode
+all: rastertozjs zjsdecode $(PPD)
 
-rastertozjs: src/rastertozjs.c $(JBIG_SRC)
-	$(CC) $(CFLAGS) -DDEFAULT_MODEL=2 -o $@ $^ $(LDFLAGS)
+rastertozjs: src/rastertozjs.c $(JBIG_SRC) Makefile
+	$(CC) $(CFLAGS) -o $@ $(filter %.c,$^) $(LDFLAGS)
+
+# O PPD e gerado; a lista de tamanhos e opcoes fica em scripts/make_ppd.py.
+$(PPD): scripts/make_ppd.py
+	python3 scripts/make_ppd.py > $@
+
+ppd: $(PPD)
 
 zjsdecode: src/zjsdecode.c $(JBIG_SRC)
 	$(CC) $(CFLAGS) -o $@ $^
@@ -21,4 +28,4 @@ check: all
 clean:
 	rm -f rastertozjs zjsdecode
 
-.PHONY: all check clean
+.PHONY: all check clean ppd

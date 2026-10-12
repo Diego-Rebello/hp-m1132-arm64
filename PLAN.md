@@ -139,7 +139,7 @@ Meta: página impressa corretamente.
 
 - [ ] Tornar `M1132_arm64` a padrão (`lpoptions -d M1132_arm64`).
 - [ ] Conferir as opções no diálogo de impressão do macOS (densidade, economia, tipo de papel, cópias).
-- [ ] Testar várias cópias e várias páginas (o PPD usa `cupsManualCopies`?).
+- [ ] Testar várias cópias e várias páginas na fila real: com `Collate` ligado deve sair 1,2,1,2; desligado, 1,1,2,2 (offline já conferido na revisão da Fase 3).
 - [ ] **Depois de ~1 semana de uso sem problemas:** remover a fila antiga (`lpadmin -x HP_LaserJet_Professional_M1132_MFP`). Remover os drivers Intel da HP é opcional e fica para outra decisão.
 - [ ] Commit: `Fase 6: uso diário`.
 
@@ -175,3 +175,4 @@ Meta: página impressa corretamente.
 | 2026-10-12 | 1 | Estrutura criada; `rastertoxqx` e `xqxdecode` compilam arm64 sem avisos (`-Wall`). Fontes copiadas sem modificação de printer-all@b6601e3. | (este) |
 | 2026-10-12 | 2 | **M1132 é ZjStream, não XQX.** Prova decisiva: o filtro Mac da própria HP para a série M1130/M1210 só contém `JZJZ`/`ENTER LANGUAGE` do ZJS. O hpcups (HPLIP 3.12.11) põe a M1132 no grupo `ljzjstream` da P1102; o `models.dat` (`LJZjsMono`, sem firmware) não decide; o foo2zjs não lista a M1132. Base trocada para `rastertozjs.c` Model 2 (`-z2`); `zjsdecode` vem do foo2zjs (espelho koenkooi@e04290d). Parâmetros em `docs/parametros.md`: só 600×600, margens de 12 pt (HP), `Density` numérico 1–5, Model padrão do filtro = 1 → **patch na Fase 3**. Página-régua: `scripts/make_testpage.py`. | (este) |
 | 2026-10-12 | 3 | PPD próprio (13 tamanhos, margens de 12 pt, `MediaType`, `Density` 1–5, `EconoMode`) e patch `DEFAULT_MODEL=2`. Pipeline offline OK: `DMPAPER` certo nos 13 tamanhos e opções conferidas no fluxo; a página decodificada pelo `zjsdecode -d` saiu correta. **Achados:** (1) no macOS o raster cobre só a área imprimível (A4 = 4761×6816), a mesma forma que o hpcups manda; (2) `cupsfilter -m printer/foo` ignora os filtros do PPD, então a cadeia completa só é testada na fila real; (3) `cupsFilter2` passou a usar `application/vnd.hp-zjs`; (4) 2 cópias × 2 páginas devem sair sem agrupar (1,1,2,2): conferir na Fase 6. | (este) |
+| 2026-10-12 | 3 (revisão) | Correções do `/code-review`: códigos de papel da HP via `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283); `EconoMode` `True`/`False`; filtro lê o PPD da fila (Model, padrões de `Density`/`EconoMode`/`Collate`); cópias por `argv[4]` e agrupamento feito pelo filtro (opção `Collate`); `DEFAULT_MODEL` no código com `#error`; PPD gerado por `scripts/make_ppd.py` (`make ppd`). Tudo conferido offline com `zjsdecode`. | (este) |

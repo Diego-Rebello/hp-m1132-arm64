@@ -52,11 +52,12 @@ O filtro só reconhece estes nomes (`map_paper_code`); qualquer outro vira Lette
 O filtro lê o **nome** em `header.MediaType` (não `cupsMediaType`). Nomes aceitos com Model ≥ 1:
 `Plain`, `Transparency`, `Glossy`, `Envelope`, `Letterhead`, `ThickStock`, `Cardstock`, `Labels`, `Rough`, `Heavy`, `Light`, `Vellum`, `Color`, `Preprinted`, `Prepunched`, `Recycled`. Qualquer outro nome vira papel comum.
 - Os códigos do filtro batem com os da HP (`Light` 258, `Labels` 265, `Envelope` 267, `Letterhead` 513 …). A exceção é `Heavy`: o filtro manda 261, e a HP manda 262 ("Heavy 111–130 g").
-- **Proposta:** `Plain` (padrão), `Light`, `Heavy`, `ThickStock`, `Transparency`, `Labels`, `Envelope`, `Letterhead`, `Recycled`, `Rough`.
+- ✅ **Corrigido na revisão da Fase 3:** o PPD manda o código da HP em `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283, `MidWeight` 282 …) e o filtro usa esse número direto. Os nomes ficam só como reserva, com `Heavy` também corrigido para 262.
+- **Proposta:** `Plain` (padrão), `Light`, `Heavy`, `ThickStock`, `Transparency`, `Labels`, `Envelope`, `Letterhead`, `Recycled`, `Rough`. **Final:** esses mais `MidWeight`, com `ThickStock` renomeado para `ExtraHeavy`; a lista mora em `scripts/make_ppd.py`.
 
 ### Densidade, economia e qualidade
 - `Density`: o filtro faz `atoi()`, então as escolhas precisam se chamar **`1`…`5`** (padrão `3`). Os nomes `Density1`… do foomatic dariam 0 e seriam ignorados. A HP também usa 1–5, com padrão 3.
-- `EconoMode`: só liga com o valor **`on`**.
+- `EconoMode`: Boolean com escolhas `True`/`False` (padrão da especificação PPD, como na HP). O filtro aceita `True`/`On`/`Yes`/`1`, sem diferenciar maiúsculas.
 - `Quality=draft` também liga a economia de toner. Não precisa de opção própria.
 
 ### Bandeja (`InputSlot`)
@@ -65,11 +66,13 @@ O filtro lê o **nome** em `header.MediaType` (não `cupsMediaType`). Nomes acei
 
 ### Cópias
 - O filtro manda `ZJI_DMCOPIES = header.NumCopies` (as cópias são feitas na impressora). A HP usa `*cupsManualCopies: False`; o foomatic usa `True`.
-- **Proposta:** `*cupsManualCopies: False`, como a HP. Testar na Fase 6.
+- ✅ **Revisão da Fase 3:** a impressora só faz cópias **sem agrupar** (1,1,2,2). O PPD ganhou a opção `Collate` (padrão `True`); com ela, o filtro guarda as páginas em memória e repete o documento, com `DMCOPIES=1`. O número de cópias vem de `header.NumCopies` ou, se for 1, de `argv[4]` (nunca multiplicados).
+- **Proposta:** `*cupsManualCopies: False`, como a HP. Testar na Fase 6. Offline já conferido; falta a fila real.
 
 ### ⚠️ Modelo: ajuste necessário no filtro
 - O filtro usa **Model 1 (HP1020)** por padrão e só muda isso pela opção de job `Model=0..3`. O CUPS não põe os padrões do PPD em `argv[5]`, então um `*DefaultModel: 2` no PPD **não chegaria** ao filtro.
 - ✅ **Feito na Fase 3:** um patch mínimo em `src/rastertozjs.c` para o padrão ser `MODEL_HP_PRO` (por exemplo, `-DDEFAULT_MODEL=2` no Makefile com `#ifndef` no código), registrado no `NOTICE.md`.
+- ✅ **Revisão da Fase 3:** o filtro agora abre o PPD da fila (`$PPD`) e lê `*cupsModelNumber` e os padrões de `Density`, `EconoMode` e `Collate` (`ppdMarkDefaults` + `cupsMarkOptions`), então um `lpadmin -o Density=5` passa a valer. O `-DDEFAULT_MODEL` saiu do Makefile; o padrão sem PPD é `MODEL_HP_PRO` no código, com `#error` fora de 0–3.
 
 ## 3. Página de teste
 
@@ -103,8 +106,8 @@ A4 a 600 dpi = 4961 × 7016 px para a página inteira. O que vai para a impresso
 | EnvMonarch | 2125 × 4300 | 37 |
 
 ### Opções
-- `Density=5 EconoMode=on MediaType=Heavy` e 2 cópias → `@PJL SET DENSITY=5`, `@PJL SET ECONOMODE=ON`, `ZJI_ECONOMODE 1`, `ZJI_DMMEDIATYPE 261`, `ZJI_DMCOPIES 2` em cada página. `MediaType` e cópias chegam pelo cabeçalho do raster; `Density` e `EconoMode` chegam por `argv[5]`.
-- Com cópias feitas na impressora (`cupsManualCopies: False`) e `ZJI_DMCOLLATE 0`, um documento de 2 páginas com 2 cópias deve sair **1,1,2,2** (sem agrupar). Conferir na Fase 6.
+- `Density=5 EconoMode=on MediaType=Heavy` e 2 cópias → `@PJL SET DENSITY=5`, `@PJL SET ECONOMODE=ON`, `ZJI_ECONOMODE 1`, `ZJI_DMMEDIATYPE 261`, `ZJI_DMCOPIES 2` em cada página. `MediaType` e cópias chegam pelo cabeçalho do raster; `Density` e `EconoMode` chegam por `argv[5]`. *(antes da revisão: hoje `Heavy` → 262)*
+- Com cópias feitas na impressora (`cupsManualCopies: False`) e `ZJI_DMCOLLATE 0`, um documento de 2 páginas com 2 cópias deve sair **1,1,2,2** (sem agrupar). Conferir na Fase 6. *(substituído: ver Cópias acima; com `Collate=True` sai 1,2,1,2)*
 
 ### PPD
 - `cupstestppd`: os únicos erros são "falta o arquivo cupsFilter/cupsFilter2", porque o filtro só é instalado na Fase 4. Com `-I filters` dá PASS, com 1 aviso: `EnvB5` deveria se chamar `EnvISOB5`. **Mantido**, porque o filtro só reconhece `EnvB5`.

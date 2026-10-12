@@ -1,8 +1,9 @@
 *PPD-Adobe: "4.3"
 *% HP LaserJet Professional M1132 MFP: native arm64 CUPS driver (rastertozjs, ZjStream Model 2)
 *% https://github.com/Diego-Rebello/hp-m1132-arm64 - GPL-2.0-or-later
+*% Gerado por scripts/make_ppd.py; nao edite a mao.
 *FormatVersion: "4.3"
-*FileVersion: "1.0"
+*FileVersion: "1.1"
 *LanguageVersion: English
 *LanguageEncoding: ISOLatin1
 *PCFileName: "M1132A64.PPD"
@@ -10,7 +11,7 @@
 *Product: "(HP LaserJet Professional M1132 MFP)"
 *ModelName: "HP LaserJet Professional M1132 MFP arm64"
 *ShortNickName: "HP LaserJet M1132 MFP arm64"
-*NickName: "HP LaserJet Professional M1132 MFP, arm64 rastertozjs 1.0"
+*NickName: "HP LaserJet Professional M1132 MFP, arm64 rastertozjs 1.1"
 *PSVersion: "(3010.000) 0"
 *LanguageLevel: "3"
 *ColorDevice: False
@@ -21,6 +22,7 @@
 *TTRasterizer: Type42
 *1284DeviceID: "MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;CMD:ZJS,PJL,ACL;"
 *cupsVersion: 2.2
+*% O filtro le o Model daqui (ppd->model_number) e os padroes abaixo via $PPD.
 *cupsModelNumber: 2
 *cupsManualCopies: False
 *cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"
@@ -91,6 +93,22 @@
 *PaperDimension EnvB5/Envelope B5: "498.9 708.66"
 *PaperDimension EnvMonarch/Envelope Monarch: "279 540"
 
+*OpenUI *MediaType/Media Type: PickOne
+*OrderDependency: 10 AnySetup *MediaType
+*DefaultMediaType: Plain
+*MediaType Plain/Plain Paper: "<</MediaType(Plain)/cupsMediaType 1>>setpagedevice"
+*MediaType Light/Light 60-74g: "<</MediaType(Light)/cupsMediaType 258>>setpagedevice"
+*MediaType MidWeight/Mid-Weight 96-110g: "<</MediaType(MidWeight)/cupsMediaType 282>>setpagedevice"
+*MediaType Heavy/Heavy 111-130g: "<</MediaType(Heavy)/cupsMediaType 262>>setpagedevice"
+*MediaType ExtraHeavy/Extra Heavy 131-175g: "<</MediaType(ExtraHeavy)/cupsMediaType 283>>setpagedevice"
+*MediaType Transparency/Transparency: "<</MediaType(Transparency)/cupsMediaType 2>>setpagedevice"
+*MediaType Labels/Labels: "<</MediaType(Labels)/cupsMediaType 265>>setpagedevice"
+*MediaType Envelope/Envelope: "<</MediaType(Envelope)/cupsMediaType 267>>setpagedevice"
+*MediaType Letterhead/Letterhead: "<</MediaType(Letterhead)/cupsMediaType 513>>setpagedevice"
+*MediaType Recycled/Recycled: "<</MediaType(Recycled)/cupsMediaType 516>>setpagedevice"
+*MediaType Rough/Rough: "<</MediaType(Rough)/cupsMediaType 263>>setpagedevice"
+*CloseUI: *MediaType
+
 *OpenUI *ColorModel/Color Mode: PickOne
 *OrderDependency: 10 AnySetup *ColorModel
 *DefaultColorModel: Gray
@@ -103,22 +121,16 @@
 *Resolution 600dpi/600 DPI: "<</HWResolution[600 600]>>setpagedevice"
 *CloseUI: *Resolution
 
-*OpenUI *MediaType/Media Type: PickOne
-*OrderDependency: 10 AnySetup *MediaType
-*DefaultMediaType: Plain
-*MediaType Plain/Plain Paper: "<</MediaType(Plain)>>setpagedevice"
-*MediaType Light/Light 60-74g: "<</MediaType(Light)>>setpagedevice"
-*MediaType Heavy/Heavy 111-130g: "<</MediaType(Heavy)>>setpagedevice"
-*MediaType ThickStock/Extra Heavy 131-175g: "<</MediaType(ThickStock)>>setpagedevice"
-*MediaType Transparency/Transparency: "<</MediaType(Transparency)>>setpagedevice"
-*MediaType Labels/Labels: "<</MediaType(Labels)>>setpagedevice"
-*MediaType Envelope/Envelope: "<</MediaType(Envelope)>>setpagedevice"
-*MediaType Letterhead/Letterhead: "<</MediaType(Letterhead)>>setpagedevice"
-*MediaType Recycled/Recycled: "<</MediaType(Recycled)>>setpagedevice"
-*MediaType Rough/Rough: "<</MediaType(Rough)>>setpagedevice"
-*CloseUI: *MediaType
+*% Copias: a impressora faz as copias sem agrupar (ZJI_DMCOPIES); com
+*% Collate=True o filtro repete o documento inteiro.
+*OpenUI *Collate/Collate Copies: Boolean
+*OrderDependency: 10 AnySetup *Collate
+*DefaultCollate: True
+*Collate True/On: "<</Collate true>>setpagedevice"
+*Collate False/Off: "<</Collate false>>setpagedevice"
+*CloseUI: *Collate
 
-*% Density e EconoMode chegam ao filtro pelas opcoes do job (argv[5]).
+*% Density e EconoMode: o filtro le o padrao do PPD e aplica as opcoes do job.
 *OpenUI *Density/Print Density: PickOne
 *OrderDependency: 20 AnySetup *Density
 *DefaultDensity: 3
@@ -131,9 +143,9 @@
 
 *OpenUI *EconoMode/EconoMode (Toner Save): Boolean
 *OrderDependency: 20 AnySetup *EconoMode
-*DefaultEconoMode: off
-*EconoMode off/Off: ""
-*EconoMode on/On: ""
+*DefaultEconoMode: False
+*EconoMode True/On: ""
+*EconoMode False/Off: ""
 *CloseUI: *EconoMode
 
 *DefaultFont: Courier
