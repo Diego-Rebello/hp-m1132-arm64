@@ -154,7 +154,7 @@ Goal: a correctly printed page.
 - [x] README: problem (macOS 27 + Intel filters), install, rollback, tested status (M1132 MFP, macOS 27.0.1, date) and credits/GPL.
 - [x] Printer serial number removed before publishing.
 - [x] `gh repo create Diego-Rebello/hp-m1132-arm64 --public --source . --push`
-- [ ] Optional: open an issue or PR on `faradayfury/printer-all` with the M1132 test report and the foomatic-PPD + SIP problem.
+- [x] Optional: open an issue or PR on `faradayfury/printer-all` with the M1132 test report and the foomatic-PPD + SIP problem. → [printer-all#4](https://github.com/faradayfury/printer-all/issues/4) (a PR with Model 4 was offered there).
 
 ---
 
