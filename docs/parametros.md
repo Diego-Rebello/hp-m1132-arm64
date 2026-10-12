@@ -69,7 +69,7 @@ O filtro lê o **nome** em `header.MediaType` (não `cupsMediaType`). Nomes acei
 
 ### ⚠️ Modelo: ajuste necessário no filtro
 - O filtro usa **Model 1 (HP1020)** por padrão e só muda isso pela opção de job `Model=0..3`. O CUPS não põe os padrões do PPD em `argv[5]`, então um `*DefaultModel: 2` no PPD **não chegaria** ao filtro.
-- **Proposta para a Fase 3:** um patch mínimo em `src/rastertozjs.c` para o padrão ser `MODEL_HP_PRO` (por exemplo, `-DDEFAULT_MODEL=2` no Makefile com `#ifndef` no código), registrado no `NOTICE.md`.
+- ✅ **Feito na Fase 3:** um patch mínimo em `src/rastertozjs.c` para o padrão ser `MODEL_HP_PRO` (por exemplo, `-DDEFAULT_MODEL=2` no Makefile com `#ifndef` no código), registrado no `NOTICE.md`.
 
 ## 3. Página de teste
 
@@ -77,4 +77,47 @@ O filtro lê o **nome** em `header.MediaType` (não `cupsMediaType`). Nomes acei
 - `test/regua-a4.pdf` (2 páginas) e `test/regua-letter.pdf` (1 página);
 - réguas em mm a partir da borda nos 4 lados, retângulos a 2/4/6 mm, escala de cinza de 10% a 100% e linhas de 0,1 a 1 pt.
 
-A4 a 600 dpi = **4961 × 7016 px** brutos.
+A4 a 600 dpi = 4961 × 7016 px para a página inteira. O que vai para a impressora é menor (ver §4).
+
+## 4. Resultados do pipeline offline (Fase 3)
+
+### O raster do macOS cobre só a área imprimível, e isso está certo
+- O `cgpdftoraster` do macOS rasteriza só o `ImageableArea`. Com margens de 12 pt, o A4 vira **4761 × 6816 px** (= (595,28 − 24) × 600/72 por (841,89 − 24) × 600/72), e não 4961 × 7016. Cabeçalho: `cupsImagingBBox 12 12 583.28 829.89`, `Margins 12 12`.
+- No Linux (Ghostscript) o raster seria a página inteira. Mas o **hpcups manda à impressora só a área imprimível**: `LJZjStream.cpp` (HPLIP 3.12.11) escreve `ZJI_VIDEO_X/Y` e `ZJI_RASTER_X/Y` a partir de `printable_width`/`printable_height`. Então o fluxo gerado no macOS tem a mesma forma do driver da HP. Como as margens são simétricas, a impressora deve centralizar a imagem. A página-régua na Fase 5 confirma.
+- Para conferir: `./zjsdecode -d out/pg < out/teste.zjs` grava um `.pbm` por página (largura JBIG arredondada para 128: 4864). A página A4 decodificada saiu em pé, preto sobre branco, com a escala de cinza em retícula e o corte entre os retângulos de 4 e 6 mm, como esperado.
+
+| Papel | `VIDEO_X × VIDEO_Y` | `DMPAPER` |
+|---|---|---|
+| A4 | 4761 × 6816 | 9 |
+| Letter | 4900 × 6400 | 1 |
+| Legal | 4900 × 8200 | 5 |
+| Executive | 4150 × 6100 | 7 |
+| A5 | 3296 × 4761 | 11 |
+| A6 | 2280 × 3296 | 70 |
+| B5 (JIS) | 4099 × 5871 | 13 |
+| Postcard | 2162 × 3296 | 43 |
+| Env10 | 2275 × 5500 | 20 |
+| EnvDL | 2398 × 4997 | 27 |
+| EnvC5 | 3627 × 5209 | 28 |
+| EnvB5 | 3958 × 5705 | 34 |
+| EnvMonarch | 2125 × 4300 | 37 |
+
+### Opções
+- `Density=5 EconoMode=on MediaType=Heavy` e 2 cópias → `@PJL SET DENSITY=5`, `@PJL SET ECONOMODE=ON`, `ZJI_ECONOMODE 1`, `ZJI_DMMEDIATYPE 261`, `ZJI_DMCOPIES 2` em cada página. `MediaType` e cópias chegam pelo cabeçalho do raster; `Density` e `EconoMode` chegam por `argv[5]`.
+- Com cópias feitas na impressora (`cupsManualCopies: False`) e `ZJI_DMCOLLATE 0`, um documento de 2 páginas com 2 cópias deve sair **1,1,2,2** (sem agrupar). Conferir na Fase 6.
+
+### PPD
+- `cupstestppd`: os únicos erros são "falta o arquivo cupsFilter/cupsFilter2", porque o filtro só é instalado na Fase 4. Com `-I filters` dá PASS, com 1 aviso: `EnvB5` deveria se chamar `EnvISOB5`. **Mantido**, porque o filtro só reconhece `EnvB5`.
+- `*cupsFilter2` usa como destino o tipo do fabricante `application/vnd.hp-zjs`, como no exemplo da documentação da CUPS. `application/vnd.cups-printer`, que estava no plano, não existe no macOS. O `*cupsFilter` fica só por compatibilidade.
+- B5 é **JIS** (182 × 257 mm), que é o `DMPAPER_B5` = 13 do filtro e o `B5JIS` da HP.
+
+### Limitação do `cupsfilter` do macOS
+- `cupsfilter -m printer/foo` **ignora os filtros do PPD** e gera PostScript (`cgpdftops → pstops`), até com o `hp1130.ppd` da própria HP. Por isso o teste offline para no raster, e o filtro é chamado à mão com as opções em `argv[5]`, como o `cupsd` faria. A cadeia completa só é testada de verdade na Fase 4/5, com a fila real.
+
+### Como repetir
+```sh
+PPD=ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd
+cupsfilter -p $PPD -m application/vnd.cups-raster [-o PageSize=Letter -o MediaType=Heavy -o copies=2] test/regua-a4.pdf > out/teste.ras
+./rastertozjs 1 u t 1 "Density=5 EconoMode=on" out/teste.ras > out/teste.zjs
+./zjsdecode < out/teste.zjs | grep -E "PJL SET|VIDEO|DMPAPER|DMMEDIA|DMCOPIES"
+```

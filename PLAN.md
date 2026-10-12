@@ -72,25 +72,23 @@ Meta: ter certeza (sem a impressora) do protocolo da M1132 (XQX ou ZJS) e de que
 
 ## Fase 3: Escrever o PPD e testar o pipeline sem sudo 🟡 média (~1–1,5 h)
 
-Meta: PPD próprio validado e o pipeline completo (PDF → raster → ZJS) funcionando **em arquivo**. Os valores estão em `docs/parametros.md` §2.
+Meta: PPD próprio validado e o pipeline completo (PDF → raster → ZJS) funcionando **em arquivo**. Os valores estão em `docs/parametros.md` §2; os resultados, em §4.
 
-- [ ] **Patch mínimo no filtro:** fazer o Model padrão ser 2 (`MODEL_HP_PRO`), por exemplo com `-DDEFAULT_MODEL=2` e `#ifndef` em `src/rastertozjs.c`. Hoje o padrão é 1, e o CUPS não passa os padrões do PPD para o filtro. Registrar no `NOTICE.md`.
-- [ ] `ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd` com:
-  - `*cupsFilter2: "application/vnd.cups-raster application/vnd.cups-printer 0 /Library/Printers/hp-m1132-arm64/rastertozjs"` (+ `*cupsFilter` equivalente por compatibilidade);
-  - `*cupsModelNumber`, `*1284DeviceID` com `MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;` (assim o macOS sugere o driver);
-  - `ColorModel` fixo em Gray com `cupsBitsPerColor 1` e `cupsColorSpace 3`/`cupsColorOrder 0` (1 bpp, que é o que o filtro exige);
-  - `Resolution` **só 600x600** (a Fase 2 descartou o 1200x600);
-  - `PageSize`/`ImageableArea` para A4 (default), Letter, Legal, A5, A6, B5, Executive e envelopes, com os nomes que `map_paper_code` reconhece e margens de 12 pt (HP);
-  - `MediaType` com nomes que o filtro reconhece (`Plain` padrão, `Light`, `Heavy`, `ThickStock`, `Transparency`, `Labels`, `Envelope`, `Letterhead`, `Recycled`, `Rough`), `Density` com escolhas `1`–`5` (padrão 3), `EconoMode` com valor `on`, `*cupsManualCopies: False`.
-- [ ] `cupstestppd` sem erros (avisos documentados).
-- [ ] Pipeline em arquivo, sem sudo:
-  `cupsfilter -p ppd/…ppd -m application/vnd.cups-raster test/regua-a4.pdf > out/teste.ras`
-  → `./rastertozjs 1 u t 1 "" out/teste.ras > out/teste.zjs`
-  → `./zjsdecode < out/teste.zjs | head -40` mostra START_DOC / START_PAGE (com `RET`, `DMPAPER`=A4) / JBIG / END_PAGE / END_DOC coerentes, com o tamanho de página certo.
-- [ ] Testar também A4 com 2 páginas (o `regua-a4.pdf` já tem 2) e uma página com `Density=5`.
-- [ ] Commit: `Fase 3: PPD + pipeline validado offline`.
+- [x] **Patch mínimo no filtro:** `DEFAULT_MODEL` com `#ifndef` em `src/rastertozjs.c` e `-DDEFAULT_MODEL=2` no `Makefile`. Registrado no `NOTICE.md`.
+- [x] `ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd` com:
+  - `*cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"` (+ `*cupsFilter` equivalente). ~~`application/vnd.cups-printer`~~ não existe no macOS; usado um tipo do fabricante, como manda a documentação da CUPS;
+  - `*cupsModelNumber: 2`, `*1284DeviceID: "MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;CMD:ZJS,PJL,ACL;"`;
+  - `ColorModel` fixo em Gray (`cupsColorSpace 3`, `cupsBitsPerColor 1`, `cupsColorOrder 0`);
+  - `Resolution` só 600x600;
+  - 13 tamanhos (A4 padrão, Letter, Legal, Executive, A5, A6, B5 JIS, Postcard, Env10, EnvDL, EnvC5, EnvB5, EnvMonarch), margens de 12 pt;
+  - `MediaType` (10 tipos, `Plain` padrão), `Density` `1`–`5` (padrão 3), `EconoMode` Boolean `off`/`on`, `*cupsManualCopies: False`.
+- [x] `cupstestppd`: só falha por "falta o arquivo cupsFilter" (filtro instalado na Fase 4). Com `-I filters` dá PASS + 1 aviso (`EnvB5` ≠ `EnvISOB5`, mantido porque é o nome que o filtro reconhece).
+- [x] Pipeline em arquivo: `cupsfilter … -m application/vnd.cups-raster` → `./rastertozjs` → `./zjsdecode` com START_DOC / START_PAGE / JBIG / END_PAGE / END_DOC coerentes; `zjsdecode -d` recupera a imagem certa.
+  - ⚠️ `cupsfilter -m printer/foo` do macOS ignora os filtros do PPD (até o da HP) e gera PostScript. A cadeia completa só pode ser testada com a fila real.
+- [x] A4 com 2 páginas, Letter, os 13 tamanhos (`DMPAPER` certo em todos) e `Density=5 EconoMode=on MediaType=Heavy` com 2 cópias.
+- [x] Commit: `Fase 3: PPD + pipeline validado offline`.
 
-**Pronto quando:** `zjsdecode` decodifica as páginas sem erro e as dimensões batem com A4 a 600 dpi (≈4960×7016 px brutos).
+**Pronto quando:** `zjsdecode` decodifica as páginas sem erro e as dimensões batem com A4 a 600 dpi. ✅ São **4761×6816 px** (só a área imprimível, como o hpcups manda), e não os 4961×7016 da página inteira que se esperava. Ver `docs/parametros.md` §4.
 
 ---
 
@@ -129,7 +127,7 @@ Meta: página impressa corretamente.
   | Sandbox nega execução | caminho fora do permitido | testar `/Library/Printers/<pasta>/…` como a HP; registrar a mensagem exata |
   | Impressora não reage / luz pisca | protocolo errado | voltar à Fase 2 e testar o caminho inverso (`rastertoxqx`, que está no histórico do git), ou o Model 1 do `rastertozjs` |
   | Imprime lixo / página em branco | parâmetros de página/resolução | comparar com `zjsdecode` e ajustar o PPD |
-  | Margem cortada / deslocada | `ImageableArea` | ajustar o PPD com a página-régua |
+  | Margem cortada / deslocada | `ImageableArea`, ou a impressora não centraliza a imagem (o macOS manda só a área imprimível) | medir com a página-régua; ajustar as margens do PPD |
 - [ ] Testar um PDF real, um documento do Pages/Word e uma impressão pelo Safari.
 - [ ] Registrar o resultado (inclusive falhas) no Registro e commitar.
 
@@ -176,3 +174,4 @@ Meta: página impressa corretamente.
 | 2026-10-12 | 0 | Diagnóstico concluído (ver Contexto). `rastertoxqx` compila em arm64. Projeto criado em `~/hp-m1132-arm64`. | — |
 | 2026-10-12 | 1 | Estrutura criada; `rastertoxqx` e `xqxdecode` compilam arm64 sem avisos (`-Wall`). Fontes copiadas sem modificação de printer-all@b6601e3. | (este) |
 | 2026-10-12 | 2 | **M1132 é ZjStream, não XQX.** Prova decisiva: o filtro Mac da própria HP para a série M1130/M1210 só contém `JZJZ`/`ENTER LANGUAGE` do ZJS. O hpcups (HPLIP 3.12.11) põe a M1132 no grupo `ljzjstream` da P1102; o `models.dat` (`LJZjsMono`, sem firmware) não decide; o foo2zjs não lista a M1132. Base trocada para `rastertozjs.c` Model 2 (`-z2`); `zjsdecode` vem do foo2zjs (espelho koenkooi@e04290d). Parâmetros em `docs/parametros.md`: só 600×600, margens de 12 pt (HP), `Density` numérico 1–5, Model padrão do filtro = 1 → **patch na Fase 3**. Página-régua: `scripts/make_testpage.py`. | (este) |
+| 2026-10-12 | 3 | PPD próprio (13 tamanhos, margens de 12 pt, `MediaType`, `Density` 1–5, `EconoMode`) e patch `DEFAULT_MODEL=2`. Pipeline offline OK: `DMPAPER` certo nos 13 tamanhos e opções conferidas no fluxo; a página decodificada pelo `zjsdecode -d` saiu correta. **Achados:** (1) no macOS o raster cobre só a área imprimível (A4 = 4761×6816), a mesma forma que o hpcups manda; (2) `cupsfilter -m printer/foo` ignora os filtros do PPD, então a cadeia completa só é testada na fila real; (3) `cupsFilter2` passou a usar `application/vnd.hp-zjs`; (4) 2 cópias × 2 páginas devem sair sem agrupar (1,1,2,2): conferir na Fase 6. | (este) |

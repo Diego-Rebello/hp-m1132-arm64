@@ -7,7 +7,7 @@ JBIG_SRC = src/jbig.c src/jbig_ar.c
 all: rastertozjs zjsdecode
 
 rastertozjs: src/rastertozjs.c $(JBIG_SRC)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -DDEFAULT_MODEL=2 -o $@ $^ $(LDFLAGS)
 
 zjsdecode: src/zjsdecode.c $(JBIG_SRC)
 	$(CC) $(CFLAGS) -o $@ $^

@@ -35,6 +35,12 @@
 #define MODEL_HP_PRO    2
 #define MODEL_HP_PRO_CP 3
 
+/* hp-m1132-arm64: default model is set at build time (see Makefile),
+ * since CUPS does not pass PPD defaults to the filter in argv[5]. */
+#ifndef DEFAULT_MODEL
+#define DEFAULT_MODEL   MODEL_HP1020
+#endif
+
 /* ---------- ZJS output helpers ---------- */
 
 static void
@@ -579,7 +585,7 @@ main(int argc, char *argv[])
     int                 page = 0;
     int                 density = 3;
     int                 economode = 0;
-    int                 model = MODEL_HP1020;
+    int                 model = DEFAULT_MODEL;
 
     if (argc < 6 || argc > 7)
     {
