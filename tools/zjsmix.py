@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Monta variantes de teste de um fluxo ZJS (só a 1ª página).
-Uso: zjsmix.py entrada.zjs saida.zjs [--hp-pjl] [--no-plane] [--doc-hp] [--no-ret]"""
+"""Builds test variants of a ZJS stream (first page only).
+Usage: zjsmix.py input.zjs output.zjs [--hp-pjl] [--no-plane] [--doc-hp] [--no-ret]"""
 import struct, sys
 
 src, dst, *flags = sys.argv[1:]
@@ -12,7 +12,7 @@ while d[p:p + 4] != b"\x1b%-1":
     size, typ = struct.unpack(">II", d[p:p + 8])
     chunks.append((typ, d[p:p + size]))
     p += size
-# só até o primeiro END_PAGE
+# only up to the first END_PAGE
 out = []
 for typ, c in chunks:
     out.append((typ, c))
@@ -43,7 +43,7 @@ for typ, c in out:
 
 if "--hp-pjl" in flags:
     pjl = (b"\x1b%-12345X@PJL USTATUS JOB=ON\r\n@PJL USTATUS PAGE=ON\r\n"
-           b"@PJL USTATUS DEVICE=ON\r\n@PJL INFO STATUS\r\n@PJL JOB NAME=teste\r\n"
+           b"@PJL USTATUS DEVICE=ON\r\n@PJL INFO STATUS\r\n@PJL JOB NAME=test\r\n"
            b"@PJL SET DENSITY = 3\r\n@PJL SET JAMRECOVERY = OFF\r\n@PJL ENTER LANGUAGE=ZJS\r\n")
     tail = b"\x1b%-12345X@PJL EOJ\r\n\x1b%-12345X"
 else:

@@ -12,7 +12,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612.0 792.0] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
 endobj
 5 0 obj
-<< /Length 33670 >>
+<< /Length 33654 >>
 stream
 0 G 0.3 w
 2.83 0 m 2.83 5.67 l S
@@ -1051,11 +1051,11 @@ BT /F1 5 Tf 22.68 763.85 Td (270) Tj ET
 0.5 w [] 0 d 11.34 11.34 589.32 769.32 re S
 0.5 w [3 2] 0 d 17.01 17.01 577.98 757.98 re S
 [] 0 d
-BT /F1 16 Tf 70.87 706.96 Td (hp-m1132-arm64: pagina-regua Letter (1/1)) Tj ET
-BT /F1 10 Tf 70.87 682.96 Td (Tracos a cada 1 mm a partir da borda do papel (longos a 5 e 10 mm).) Tj ET
-BT /F1 10 Tf 70.87 664.96 Td (Retangulos: pontilhado 2 mm, continuo 4 mm (margem esperada), tracejado 6 mm.) Tj ET
-BT /F1 10 Tf 70.87 646.96 Td (Papel: 612.00 x 792.00 pt. A 600 dpi: 5100 x 6600 px.) Tj ET
-BT /F1 9 Tf 70.87 615.96 Td (Cinza 10% a 100%:) Tj ET
+BT /F1 16 Tf 70.87 706.96 Td (hp-m1132-arm64: ruler page Letter (1/1)) Tj ET
+BT /F1 10 Tf 70.87 682.96 Td (Ticks every 1 mm from the paper edge (longer at 5 and 10 mm).) Tj ET
+BT /F1 10 Tf 70.87 664.96 Td (Rectangles: dotted 2 mm, solid 4 mm (about the margin), dashed 6 mm.) Tj ET
+BT /F1 10 Tf 70.87 646.96 Td (Paper: 612.00 x 792.00 pt. At 600 dpi: 5100 x 6600 px.) Tj ET
+BT /F1 9 Tf 70.87 615.96 Td (Gray 10% to 100%:) Tj ET
 0.90 g 70.87 583.96 39.69 22.68 re f
 0 g BT /F1 7 Tf 70.87 574.96 Td (10%) Tj ET
 0.80 g 113.39 583.96 39.69 22.68 re f
@@ -1076,7 +1076,7 @@ BT /F1 9 Tf 70.87 615.96 Td (Cinza 10% a 100%:) Tj ET
 0 g BT /F1 7 Tf 411.02 574.96 Td (90%) Tj ET
 0.00 g 453.54 583.96 39.69 22.68 re f
 0 g BT /F1 7 Tf 453.54 574.96 Td (100%) Tj ET
-BT /F1 9 Tf 70.87 543.96 Td (Linhas de 0.1 a 1.0 pt:) Tj ET
+BT /F1 9 Tf 70.87 543.96 Td (Lines from 0.1 to 1.0 pt:) Tj ET
 0 G 0.1 w 70.87 533.96 m 70.87 473.96 l S
 0 G 0.2 w 113.39 533.96 m 113.39 473.96 l S
 0 G 0.3 w 155.91 533.96 m 155.91 473.96 l S
@@ -1087,7 +1087,7 @@ BT /F1 9 Tf 70.87 543.96 Td (Linhas de 0.1 a 1.0 pt:) Tj ET
 0 G 0.8 w 368.50 533.96 m 368.50 473.96 l S
 0 G 0.9 w 411.02 533.96 m 411.02 473.96 l S
 0 G 1.0 w 453.54 533.96 m 453.54 473.96 l S
-BT /F1 40 Tf 70.87 336.00 Td (Pagina 1) Tj ET
+BT /F1 40 Tf 70.87 336.00 Td (Page 1) Tj ET
 endstream
 endobj
 xref
@@ -1101,5 +1101,5 @@ xref
 trailer
 << /Size 6 /Root 1 0 R >>
 startxref
-34065
+34049
 %%EOF

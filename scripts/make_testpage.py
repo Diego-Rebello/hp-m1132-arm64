@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Gera PDFs de teste (pagina-regua) sem dependencias externas.
+"""Generates test PDFs (ruler pages) with no external dependencies.
 
-Cada pagina tem:
-  - reguas nas 4 bordas, com traco a cada 1 mm (5 mm e 10 mm mais longos),
-    medidas a partir da borda do papel: o primeiro traco visivel diz quanto
-    a impressora cortou;
-  - retangulos a 2, 4 e 6 mm da borda (4 mm = 11.34 pt = margem esperada);
-  - escala de cinza (10%..100%) para conferir densidade/halftone;
-  - linhas finas (0.1 a 1 pt) para conferir resolucao.
+Each page has:
+  - rulers on all 4 edges, with a tick every 1 mm (longer at 5 and 10 mm),
+    measured from the paper edge: the first visible tick shows how much
+    the printer clipped;
+  - rectangles 2, 4 and 6 mm from the edge (the PPD margin is 12 pt = 4.23 mm);
+  - a gray scale (10%..100%) to check density/halftoning;
+  - thin lines (0.1 to 1 pt) to check resolution.
 
-Uso: python3 scripts/make_testpage.py [saida_dir]
-Gera regua-a4.pdf (2 paginas) e regua-letter.pdf (1 pagina).
+Usage: python3 scripts/make_testpage.py [output_dir]
+Writes ruler-a4.pdf (2 pages) and ruler-letter.pdf (1 page).
 """
 import os
 import sys
@@ -35,7 +35,7 @@ def ruler(w, h):
                 ops.append(f"0 {p:.2f} m {t:.2f} {p:.2f} l S")
             else:
                 ops.append(f"{w:.2f} {p:.2f} m {w - t:.2f} {p:.2f} l S")
-    # numeros a cada 10 mm na borda de baixo e na esquerda
+    # numbers every 10 mm on the bottom and left edges
     for i in range(10, int(w / MM), 10):
         ops.append(f"BT /F1 5 Tf {i * MM - 3:.2f} {8 * MM:.2f} Td ({i}) Tj ET")
     for i in range(10, int(h / MM), 10):
@@ -56,31 +56,31 @@ def body(w, h, label, page, pages):
     cx = 25 * MM
     y = h - 30 * MM
     lines = [
-        (16, f"hp-m1132-arm64: pagina-regua {label} ({page}/{pages})"),
-        (10, "Tracos a cada 1 mm a partir da borda do papel (longos a 5 e 10 mm)."),
-        (10, "Retangulos: pontilhado 2 mm, continuo 4 mm (margem esperada), tracejado 6 mm."),
-        (10, f"Papel: {w:.2f} x {h:.2f} pt. A 600 dpi: {round(w / 72 * 600)} x {round(h / 72 * 600)} px."),
+        (16, f"hp-m1132-arm64: ruler page {label} ({page}/{pages})"),
+        (10, "Ticks every 1 mm from the paper edge (longer at 5 and 10 mm)."),
+        (10, "Rectangles: dotted 2 mm, solid 4 mm (about the margin), dashed 6 mm."),
+        (10, f"Paper: {w:.2f} x {h:.2f} pt. At 600 dpi: {round(w / 72 * 600)} x {round(h / 72 * 600)} px."),
     ]
     ops = []
     for size, text in lines:
         ops.append(f"BT /F1 {size} Tf {cx:.2f} {y:.2f} Td ({text}) Tj ET")
         y -= size + 8
-    # escala de cinza
+    # gray scale
     y -= 45
-    ops.append(f"BT /F1 9 Tf {cx:.2f} {y + 32:.2f} Td (Cinza 10% a 100%:) Tj ET")
+    ops.append(f"BT /F1 9 Tf {cx:.2f} {y + 32:.2f} Td (Gray 10% to 100%:) Tj ET")
     for i in range(10):
         g = 1 - (i + 1) / 10
         x = cx + i * 15 * MM
         ops.append(f"{g:.2f} g {x:.2f} {y:.2f} {14 * MM:.2f} {8 * MM:.2f} re f")
         ops.append(f"0 g BT /F1 7 Tf {x:.2f} {y - 9:.2f} Td ({(i + 1) * 10}%) Tj ET")
-    # linhas finas
+    # thin lines
     y -= 40
-    ops.append(f"BT /F1 9 Tf {cx:.2f} {y:.2f} Td (Linhas de 0.1 a 1.0 pt:) Tj ET")
+    ops.append(f"BT /F1 9 Tf {cx:.2f} {y:.2f} Td (Lines from 0.1 to 1.0 pt:) Tj ET")
     for i in range(10):
         lw = (i + 1) / 10
         x = cx + i * 15 * MM
         ops.append(f"0 G {lw:.1f} w {x:.2f} {y - 10:.2f} m {x:.2f} {y - 70:.2f} l S")
-    ops.append(f"BT /F1 40 Tf {cx:.2f} {h / 2 - 60:.2f} Td (Pagina {page}) Tj ET")
+    ops.append(f"BT /F1 40 Tf {cx:.2f} {h / 2 - 60:.2f} Td (Page {page}) Tj ET")
     return ops
 
 
@@ -121,5 +121,5 @@ def build(path, label, pages):
 if __name__ == "__main__":
     outdir = sys.argv[1] if len(sys.argv) > 1 else "test"
     os.makedirs(outdir, exist_ok=True)
-    build(os.path.join(outdir, "regua-a4.pdf"), "A4", 2)
-    build(os.path.join(outdir, "regua-letter.pdf"), "Letter", 1)
+    build(os.path.join(outdir, "ruler-a4.pdf"), "A4", 2)
+    build(os.path.join(outdir, "ruler-letter.pdf"), "Letter", 1)

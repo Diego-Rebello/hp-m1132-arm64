@@ -1,183 +1,186 @@
-# HP LaserJet M1132 MFP no macOS 27 (Apple Silicon): plano
+# HP LaserJet M1132 MFP on macOS 27 (Apple Silicon): plan
 
-Objetivo: voltar a imprimir na HP LaserJet Professional M1132 MFP (USB) com um filtro CUPS **nativo arm64**, sem Rosetta, sem Ghostscript e sem os drivers Intel da HP.
-
----
-
-## Como usar este plano (limites de 5 h e semanal)
-
-- **Uma fase por sessão.** Cada fase foi pensada para caber com folga em uma janela de 5 h e terminar com um ponto de parada seguro (nada fica "pela metade").
-- **Começar cada sessão assim:** `/clear` e depois:
-  > `continua o PLAN.md do ~/hp-m1132-arm64, fase N`
-- **No fim de cada fase:** marcar os checkboxes, preencher o "Registro" lá embaixo e fazer `git commit`. É isso que permite retomar sem reexplicar tudo.
-- **Economizar uso:**
-  - Não colar nem pedir para ler arquivos grandes inteiros (PPDs têm 30 KB+; logs do CUPS são enormes). Usar `grep`/`tail` com filtro.
-  - Fases marcadas como 🟢 **leve** podem ser feitas no fim de uma janela ou com o limite semanal apertado. Fases 🟡 **média** precisam de uma janela mais folgada.
-  - Se o limite acabar no meio de uma fase, parar no último passo concluído, anotar no Registro e commitar.
-- **Sugestão de calendário:** Semana 1 → Fases 1–3 (tudo sem `sudo`, sem mexer no sistema). Semana 2 → Fases 4–5 (instalação e teste real). Semana 3+ → Fases 6–7 (acabamento e publicação), sem pressa.
+Goal: get the HP LaserJet Professional M1132 MFP (USB) printing again with a **native arm64** CUPS filter, without Rosetta, Ghostscript or HP's Intel drivers.
 
 ---
 
-## Contexto já levantado (Fase 0, concluída em 12/10/2026)
+## How to use this plan (5-hour and weekly usage limits)
+
+- **One phase per session.** Each phase is sized to fit comfortably in a 5-hour window and ends at a safe stopping point (nothing is left half-done).
+- **Start each session with:** `/clear` and then:
+  > `continue PLAN.md in ~/hp-m1132-arm64, phase N`
+- **At the end of each phase:** tick the checkboxes, fill in the "Log" at the bottom and `git commit`. That is what makes it possible to resume without re-explaining everything.
+- **Saving usage:**
+  - Do not paste or ask to read large files in full (PPDs are 30 KB+; CUPS logs are huge). Use `grep`/`tail` with filters.
+  - Phases marked 🟢 **light** can be done at the end of a window or when the weekly limit is tight. 🟡 **medium** phases need a roomier window.
+  - If the limit runs out mid-phase, stop at the last completed step, note it in the Log and commit.
+- **Suggested schedule:** Week 1 → Phases 1–3 (no `sudo`, nothing touched on the system). Week 2 → Phases 4–5 (install and real test). Week 3+ → Phases 6–7 (finishing and publishing), no rush.
+
+---
+
+## Context gathered (Phase 0, done 2026-10-12)
 
 - Mac: Apple Silicon (`arm64`), macOS 27.0.1 (26A434).
-- Fila atual: `HP_LaserJet_Professional_M1132_MFP`
+- Existing queue: `HP_LaserJet_Professional_M1132_MFP`
   URI: `usb://Hewlett-Packard/HP%20LaserJet%20Professional%20M1132%20MFP?serial=…`
-- **Causa da falha:** os filtros da HP (`usbink`, `rastertozjs` em `/Library/Printers/hp/laserjet/M11_M12_M13series/hpRaster.bundle`) são só `x86_64 i386`. O CUPS do macOS 27 recusa iniciá-los: log com `com.apple.badarch-error` e `Broken pipe`, 0 bytes enviados. O Rosetta está ativo e o filtro roda no terminal, então o bloqueio é do CUPS.
-- Nenhum driver HP instalado tem versão arm64 (`M1130_1210series`, `hplaserjetzjs`, `p1100…`, `cp1020…`: todos Intel).
-- A fila atual usa o PPD **errado** ("HP LaserJet Pro M12"), não o da série M1130/M1210. É irrelevante para a solução, mas explica comportamentos estranhos antigos.
-- Base escolhida: [faradayfury/printer-all](https://github.com/faradayfury/printer-all) (GPL-2.0), filtro ~~`rastertoxqx.c`~~ → **`rastertozjs.c`** desde a Fase 2 (reescrita do foo2zjs, também GPL-2.0). As notas abaixo valem para os dois filtros (mesmo autor, mesma estrutura).
-  - ✅ `rastertoxqx` compila nativo arm64 sem avisos (`clang … -lcups -lcupsimage`).
-  - ✅ Código simples: lê raster CUPS da entrada, escreve XQX na saída, sem rede e sem `exec`. Opções lidas: `Density`, `EconoMode`, `PageSize`, `MediaType`. Exige raster **1 bit por pixel**.
-  - ❌ **Todos os PPDs do repo chamam `foomatic-rip`** (não existe no macOS). Nenhum usa os filtros do próprio repo, então **precisamos escrever nosso PPD.**
-  - ❌ O `install.sh` copia para `/usr/libexec/cups/filter/` (protegido pelo SIP). **Não usar.** Instalar em `/Library/Printers/…` com caminho absoluto no `*cupsFilter`, como a HP faz.
-  - ⚠️ M1132 não está na lista dele; só a P1007 foi testada em hardware. ~~Pelo foo2xqx, a M1132 é XQX~~ → **Corrigido na Fase 2: a M1132 é ZjStream (ZJS)**, a mesma família da P1102. A base passou a ser `rastertozjs.c`, Model 2. Não precisa de firmware. Detalhes em `docs/parametros.md`.
-- Ferramentas disponíveis sem `sudo`: `clang`, `make`, `git`, `gh` (logado como `Diego-Rebello`), `cupsfilter`, `cupstestppd`.
-- Cópia do printer-all usada na análise: pasta temporária do Claude (some ao reiniciar). A Fase 1 clona de novo para dentro do projeto.
+- **Cause of the failure:** HP's filters (`usbink`, `rastertozjs` in `/Library/Printers/hp/laserjet/M11_M12_M13series/hpRaster.bundle`) are `x86_64 i386` only. macOS 27's CUPS refuses to start them: the log shows `com.apple.badarch-error` and `Broken pipe`, with 0 bytes sent. Rosetta is active and the filter runs in Terminal, so the block is in CUPS.
+- No installed HP driver has an arm64 build (`M1130_1210series`, `hplaserjetzjs`, `p1100…`, `cp1020…`: all Intel).
+- The existing queue uses the **wrong** PPD ("HP LaserJet Pro M12"), not the M1130/M1210 series one. It does not matter for the solution, but it explains some odd behavior in the past.
+- Chosen base: [faradayfury/printer-all](https://github.com/faradayfury/printer-all) (GPL-2.0), filter ~~`rastertoxqx.c`~~ → **`rastertozjs.c`** since Phase 2 (a rewrite of foo2zjs, also GPL-2.0). The notes below apply to both filters (same author, same structure).
+  - ✅ `rastertoxqx` builds natively for arm64 with no warnings (`clang … -lcups -lcupsimage`).
+  - ✅ Simple code: reads CUPS raster from its input and writes XQX to its output, with no network access and no `exec`. Options read: `Density`, `EconoMode`, `PageSize`, `MediaType`. Requires **1 bit per pixel** raster.
+  - ❌ **Every PPD in the repo calls `foomatic-rip`** (which does not exist on macOS). None of them uses the repo's own filters, so **we need to write our own PPD.**
+  - ❌ Its `install.sh` copies to `/usr/libexec/cups/filter/` (protected by SIP). **Do not use it.** Install under `/Library/Printers/…` with an absolute path in `*cupsFilter`, as HP does.
+  - ⚠️ The M1132 is not on its list; only the P1007 was tested on hardware. ~~According to foo2xqx, the M1132 is XQX~~ → **Corrected in Phase 2: the M1132 is ZjStream (ZJS)**, the same family as the P1102. The base became `rastertozjs.c`, Model 2. No firmware needed. Details in `docs/parameters.md`.
+- Tools available without `sudo`: `clang`, `make`, `git`, `gh` (logged in as `Diego-Rebello`), `cupsfilter`, `cupstestppd`.
+- The printer-all copy used for the analysis was in Claude's temporary folder (gone after a reboot). Phase 1 clones it again into the project.
 
 ---
 
-## Fase 1: Montar o projeto local 🟢 leve (~30 min)
+## Phase 1: Set up the local project 🟢 light (~30 min)
 
-Meta: repositório local enxuto, compilando, com licença correta. **Nada é instalado no sistema.**
+Goal: a lean local repository that builds and has the correct license. **Nothing is installed on the system.**
 
-- [x] Clonar `printer-all` em `vendor/printer-all-src/` (ignorado no git) e anotar o hash do commit usado (`b6601e3`).
-- [x] Copiar só o necessário para `src/`: `rastertoxqx.c`, `foo2zjs/jbig.c`, `jbig.h`, `jbig_ar.c`, `jbig_ar.h`, `xqx.h`, `xqxdecode.c`.
-- [x] `LICENSE` (GPL-2.0) + `NOTICE.md` com créditos: foo2zjs (Rick Richardson) e printer-all (faradayfury), com o commit de origem.
-- [x] `Makefile` com os alvos `rastertoxqx`, `xqxdecode`, `clean` e `check` (`lipo -archs` precisa dar `arm64`).
-- [x] `.gitignore` (binários, `vendor/`, `out/`).
-- [x] `make && make check` sem avisos. (Com `-Wextra` aparecem 5 avisos inofensivos; mantido `-Wall`, igual ao upstream.)
+- [x] Clone `printer-all` into `vendor/printer-all-src/` (git-ignored) and note the commit hash used (`b6601e3`).
+- [x] Copy only what is needed to `src/`: `rastertoxqx.c`, `foo2zjs/jbig.c`, `jbig.h`, `jbig_ar.c`, `jbig_ar.h`, `xqx.h`, `xqxdecode.c`.
+- [x] `LICENSE` (GPL-2.0) + `NOTICE.md` crediting foo2zjs (Rick Richardson) and printer-all (faradayfury), with the source commit.
+- [x] `Makefile` with the `rastertoxqx`, `xqxdecode`, `clean` and `check` targets (`lipo -archs` must give `arm64`).
+- [x] `.gitignore` (binaries, `vendor/`, `out/`).
+- [x] `make && make check` with no warnings. (`-Wextra` shows 5 harmless warnings; kept `-Wall`, as upstream does.)
 - [x] Commit: `Fase 1: estrutura e filtro XQX compilando`.
 
-**Pronto quando:** `make check` imprime `arm64` e o repo tem só fontes + docs.
+**Done when:** `make check` prints `arm64` and the repo has only sources + docs.
 
 ---
 
-## Fase 2: Confirmar o protocolo e validar o filtro offline 🟡 média (~1–1,5 h)
+## Phase 2: Confirm the protocol and validate the filter offline 🟡 medium (~1–1.5 h)
 
-Meta: ter certeza (sem a impressora) do protocolo da M1132 (XQX ou ZJS) e de que o filtro gera um fluxo coerente.
+Goal: be sure (without the printer) which protocol the M1132 speaks (XQX or ZJS) and that the filter produces a coherent stream.
 
-- [x] Confirmar a família da M1132 em fontes primárias, sem ler arquivos inteiros:
-  - lista de modelos do `foo2xqx` (man page / `foo2xqx.c` do foo2zjs): a M1132 não aparece;
-  - entrada da M1132 no `models.dat` do HPLIP: `LJZjsMono`, que não decide. O que decidiu foi o `hpcups.drv` (`ljzjstream`) e o **próprio filtro Mac da HP** (`JZJZ`, sem XQX).
-  - Fontes anotadas em `docs/parametros.md` §1.
-- [x] A M1132 é **ZjStream (ZJS)**: base trocada para `rastertozjs.c` (Model 2 = `-z2`, como a P1102) e Fase 1 refeita (`rastertozjs` + `zjsdecode`, arm64, sem avisos).
-- [x] Parâmetros extraídos (HP `hp1130.ppd`, hpcups, foomatic P1102, código do filtro) → `docs/parametros.md` §2.
-- [x] PDF de teste: `scripts/make_testpage.py` → `test/regua-a4.pdf` (2 páginas) e `test/regua-letter.pdf`.
+- [x] Confirm the M1132's family from primary sources, without reading whole files:
+  - `foo2xqx` model list (man page / foo2zjs's `foo2xqx.c`): the M1132 is not there;
+  - the M1132 entry in HPLIP's `models.dat`: `LJZjsMono`, which does not decide it. What decided it was `hpcups.drv` (`ljzjstream`) and **HP's own Mac filter** (`JZJZ`, no XQX).
+  - Sources listed in `docs/parameters.md` §1.
+- [x] The M1132 is **ZjStream (ZJS)**: base switched to `rastertozjs.c` (Model 2 = `-z2`, like the P1102) and Phase 1 redone (`rastertozjs` + `zjsdecode`, arm64, no warnings).
+- [x] Parameters extracted (HP `hp1130.ppd`, hpcups, foomatic P1102, filter code) → `docs/parameters.md` §2.
+- [x] Test PDF: `scripts/make_testpage.py` → `test/ruler-a4.pdf` (2 pages) and `test/ruler-letter.pdf`.
 - [x] Commit: `Fase 2: M1132 é ZJS; base trocada para rastertozjs`.
 
-**Pronto quando:** protocolo confirmado e parâmetros anotados em `docs/parametros.md`.
+**Done when:** protocol confirmed and parameters written down in `docs/parameters.md`.
 
 ---
 
-## Fase 3: Escrever o PPD e testar o pipeline sem sudo 🟡 média (~1–1,5 h)
+## Phase 3: Write the PPD and test the pipeline without sudo 🟡 medium (~1–1.5 h)
 
-Meta: PPD próprio validado e o pipeline completo (PDF → raster → ZJS) funcionando **em arquivo**. Os valores estão em `docs/parametros.md` §2; os resultados, em §4.
+Goal: our own validated PPD and the full pipeline (PDF → raster → ZJS) working **to a file**. The values are in `docs/parameters.md` §2; the results in §4.
 
-- [x] **Patch mínimo no filtro:** `DEFAULT_MODEL` com `#ifndef` em `src/rastertozjs.c` e `-DDEFAULT_MODEL=2` no `Makefile`. Registrado no `NOTICE.md`.
-- [x] `ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd` com:
-  - `*cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"` (+ `*cupsFilter` equivalente). ~~`application/vnd.cups-printer`~~ não existe no macOS; usado um tipo do fabricante, como manda a documentação da CUPS;
+- [x] **Minimal filter patch:** `DEFAULT_MODEL` with `#ifndef` in `src/rastertozjs.c` and `-DDEFAULT_MODEL=2` in the `Makefile`. Recorded in `NOTICE.md`.
+- [x] `ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd` with:
+  - `*cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"` (+ the equivalent `*cupsFilter`). ~~`application/vnd.cups-printer`~~ does not exist on macOS; a vendor type is used instead, as the CUPS documentation says;
   - `*cupsModelNumber: 2`, `*1284DeviceID: "MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;CMD:ZJS,PJL,ACL;"`;
-  - `ColorModel` fixo em Gray (`cupsColorSpace 3`, `cupsBitsPerColor 1`, `cupsColorOrder 0`);
-  - `Resolution` só 600x600;
-  - 13 tamanhos (A4 padrão, Letter, Legal, Executive, A5, A6, B5 JIS, Postcard, Env10, EnvDL, EnvC5, EnvB5, EnvMonarch), margens de 12 pt;
-  - `MediaType` (10 tipos, `Plain` padrão), `Density` `1`–`5` (padrão 3), `EconoMode` Boolean `off`/`on`, `*cupsManualCopies: False`.
-- [x] `cupstestppd`: só falha por "falta o arquivo cupsFilter" (filtro instalado na Fase 4). Com `-I filters` dá PASS + 1 aviso (`EnvB5` ≠ `EnvISOB5`, mantido porque é o nome que o filtro reconhece).
-- [x] Pipeline em arquivo: `cupsfilter … -m application/vnd.cups-raster` → `./rastertozjs` → `./zjsdecode` com START_DOC / START_PAGE / JBIG / END_PAGE / END_DOC coerentes; `zjsdecode -d` recupera a imagem certa.
-  - ⚠️ `cupsfilter -m printer/foo` do macOS ignora os filtros do PPD (até o da HP) e gera PostScript. A cadeia completa só pode ser testada com a fila real.
-- [x] A4 com 2 páginas, Letter, os 13 tamanhos (`DMPAPER` certo em todos) e `Density=5 EconoMode=on MediaType=Heavy` com 2 cópias.
+  - `ColorModel` fixed to Gray (`cupsColorSpace 3`, `cupsBitsPerColor 1`, `cupsColorOrder 0`);
+  - `Resolution` 600x600 only;
+  - 13 sizes (A4 default, Letter, Legal, Executive, A5, A6, B5 JIS, Postcard, Env10, EnvDL, EnvC5, EnvB5, EnvMonarch), 12 pt margins;
+  - `MediaType` (10 types, `Plain` default), `Density` `1`–`5` (default 3), `EconoMode` Boolean `off`/`on`, `*cupsManualCopies: False`.
+- [x] `cupstestppd`: fails only on "missing cupsFilter file" (the filter is installed in Phase 4). With `-I filters`, PASS + 1 warning (`EnvB5` ≠ `EnvISOB5`, kept because that is the name the filter recognizes).
+- [x] Pipeline to a file: `cupsfilter … -m application/vnd.cups-raster` → `./rastertozjs` → `./zjsdecode` with coherent START_DOC / START_PAGE / JBIG / END_PAGE / END_DOC; `zjsdecode -d` recovers the right image.
+  - ⚠️ macOS `cupsfilter -m printer/foo` ignores the PPD's filters (even HP's) and produces PostScript. The full chain can only be tested with the real queue.
+- [x] A4 with 2 pages, Letter, all 13 sizes (correct `DMPAPER` for each) and `Density=5 EconoMode=on MediaType=Heavy` with 2 copies.
 - [x] Commit: `Fase 3: PPD + pipeline validado offline`.
 
-**Pronto quando:** `zjsdecode` decodifica as páginas sem erro e as dimensões batem com A4 a 600 dpi. ✅ São **4761×6816 px** (só a área imprimível, como o hpcups manda), e não os 4961×7016 da página inteira que se esperava. Ver `docs/parametros.md` §4.
+**Done when:** `zjsdecode` decodes the pages without errors and the dimensions match A4 at 600 dpi. ✅ They are **4761×6816 px** (the printable area only, as hpcups sends it), not the 4961×7016 of the whole page that was expected. See `docs/parameters.md` §4.
 
 ---
 
-## Fase 4: Instalar e criar uma fila nova 🟢 leve (~30 min) ⚠️ precisa de `sudo`
+## Phase 4: Install and create a new queue 🟢 light (~30 min) ⚠️ needs `sudo`
 
-Meta: instalar sem tocar na fila antiga, com rollback em um comando.
+Goal: install without touching the old queue, with a one-command rollback.
 
-O Claude não digita senha. Os comandos com `sudo` são passados prontos para rodar **no Terminal.app**, começando com `cd ~/hp-m1132-arm64 && sudo …` (o `! sudo` só funciona no prompt do Claude Code, não no zsh).
+Claude does not type passwords. `sudo` commands are handed over ready to run **in Terminal.app**, starting with `cd ~/hp-m1132-arm64 && sudo …` (the `! sudo` prefix only works in the Claude Code prompt, not in zsh).
 
-- [x] `scripts/install.sh` (revisado antes de rodar). Uso: `make && sudo ./scripts/install.sh`
-  - confere que `rastertozjs` já está compilado e é arm64 (não compila como root);
-  - `/Library/Printers/hp-m1132-arm64/rastertozjs`, dono `root:wheel`, `755` (o CUPS recusa filtros graváveis por outros usuários);
-  - `codesign --force --sign -` no binário + `codesign --verify`;
-  - PPD em `/Library/Printers/PPDs/Contents/Resources/` (`root:wheel 644`), validado com `cupstestppd` já com o filtro no lugar;
-  - URI detectada pelo `lpinfo --include-schemes usb` ou, se a impressora estiver desligada, copiada da fila antiga. `URI=…` força outra. O serial não fica no script.
-- [x] `scripts/uninstall.sh` (rollback: cancela os jobs e remove a fila nova, o filtro e o PPD).
-- [x] **Fila nova** `M1132_arm64` criada pelo próprio `install.sh` (`lpadmin -p M1132_arm64 -E -v <URI> -P <ppd> -D "HP M1132 (arm64)" -o printer-is-shared=false`). O aviso "Drivers de impressoras não são mais usados" do `lpadmin -P` é esperado e não impede nada.
-- [x] A fila antiga **não foi removida** (continua ociosa).
+- [x] `scripts/install.sh` (reviewed before running). Usage: `make && sudo ./scripts/install.sh`
+  - checks that `rastertozjs` is already built and is arm64 (does not build as root);
+  - `/Library/Printers/hp-m1132-arm64/rastertozjs`, owned by `root:wheel`, `755` (CUPS refuses filters writable by other users);
+  - `codesign --force --sign -` on the binary + `codesign --verify`;
+  - PPD in `/Library/Printers/PPDs/Contents/Resources/` (`root:wheel 644`), validated with `cupstestppd` once the filter is in place;
+  - URI detected by `lpinfo --include-schemes usb` or, if the printer is off, copied from the old queue. `URI=…` forces another one. The serial number is not in the script.
+- [x] `scripts/uninstall.sh` (rollback: cancels jobs and removes the new queue, the filter and the PPD).
+- [x] **New queue** `M1132_arm64` created by `install.sh` itself (`lpadmin -p M1132_arm64 -E -v <URI> -P <ppd> -D "HP M1132 (arm64)" -o printer-is-shared=false`). The "Printer drivers are deprecated" warning from `lpadmin -P` is expected and blocks nothing.
+- [x] The old queue **was not removed** (it stays idle).
 - [x] Commit: `Fase 4: scripts de instalação`.
 
-**Pronto quando:** `lpstat -p M1132_arm64` mostra a fila ativa e `lipo -archs` no filtro instalado dá `arm64`. ✅ Fila ociosa e ativa, filtro `arm64` com assinatura ad hoc, `device-uri` igual à fila antiga.
+**Done when:** `lpstat -p M1132_arm64` shows the queue enabled and `lipo -archs` on the installed filter gives `arm64`. ✅ Queue idle and enabled, filter `arm64` with an ad hoc signature, `device-uri` identical to the old queue's.
 
 ---
 
-## Fase 5: Teste real na impressora 🟡 média (~1 h, depende do resultado)
+## Phase 5: Real test on the printer 🟡 medium (~1 h, depends on the result)
 
-Meta: página impressa corretamente.
+Goal: a correctly printed page.
 
-- [x] Impressora ligada, USB conectado, papel A4.
-- [x] `lp -d M1132_arm64 teste.pdf`
-- [x] Ver só as linhas relevantes do log: `grep "Job <n>" /var/log/cups/error_log | grep -iE "error|rastertozjs|badarch|sent|PAGE" | tail -30`.
-- [x] Árvore de problemas (a falha real foi outra: o USB travava com o fluxo do Model 2; ver Registro e `docs/parametros.md` §5):
-  | Sintoma | Provável causa | Ação |
+- [x] Printer on, USB connected, A4 paper.
+- [x] `lp -d M1132_arm64 test.pdf`
+- [x] Look only at the relevant log lines: `grep "Job <n>" /var/log/cups/error_log | grep -iE "error|rastertozjs|badarch|sent|PAGE" | tail -30`.
+- [x] Troubleshooting tree (the actual failure was a different one: USB stalled on the Model 2 stream; see the Log and `docs/parameters.md` §5):
+  | Symptom | Likely cause | Action |
   |---|---|---|
-  | `badarch` de novo | binário errado instalado | `lipo -archs` no instalado; reinstalar |
-  | "insecure filter" / permissão | dono/modo do filtro | `chown root:wheel`, `chmod 755` |
-  | Sandbox nega execução | caminho fora do permitido | testar `/Library/Printers/<pasta>/…` como a HP; registrar a mensagem exata |
-  | Impressora não reage / luz pisca | protocolo errado | voltar à Fase 2 e testar o caminho inverso (`rastertoxqx`, que está no histórico do git), ou o Model 1 do `rastertozjs` |
-  | Imprime lixo / página em branco | parâmetros de página/resolução | comparar com `zjsdecode` e ajustar o PPD |
-  | Margem cortada / deslocada | `ImageableArea`, ou a impressora não centraliza a imagem (o macOS manda só a área imprimível) | medir com a página-régua; ajustar as margens do PPD |
-- [x] Testar um documento real: **Word** perfeito em A4. ~~Preview e Safari~~ → passaram para a Fase 6, junto com a conferência do diálogo.
-- [x] Registrar o resultado (inclusive falhas) no Registro e commitar.
+  | `badarch` again | wrong binary installed | `lipo -archs` on the installed one; reinstall |
+  | "insecure filter" / permissions | filter owner/mode | `chown root:wheel`, `chmod 755` |
+  | Sandbox denies execution | path outside the allowed ones | try `/Library/Printers/<folder>/…` like HP; record the exact message |
+  | Printer does not react / light blinks | wrong protocol | back to Phase 2 and try the other path (`rastertoxqx`, which is in the git history), or `rastertozjs` Model 1 |
+  | Prints garbage / blank page | page/resolution parameters | compare with `zjsdecode` and adjust the PPD |
+  | Margin clipped / shifted | `ImageableArea`, or the printer does not center the image (macOS sends only the printable area) | measure with the ruler page; adjust the PPD margins |
+- [x] Test a real document: **Word**, perfect on A4. ~~Preview and Safari~~ → moved to Phase 6, along with checking the dialog.
+- [x] Record the result (including failures) in the Log and commit.
 
-**Pronto quando:** página de teste e um documento real saem corretos. ✅ Página-régua (1 e 2 páginas) e documento do Word perfeitos, com o **Model 4**.
+**Done when:** the test page and a real document print correctly. ✅ Ruler page (1 and 2 pages) and a Word document perfect, with **Model 4**.
 
 ---
 
-## Fase 6: Acabamento e uso diário 🟢 leve (~30–45 min)
+## Phase 6: Finishing touches and daily use 🟢 light (~30–45 min)
 
-- [x] Tornar `M1132_arm64` a padrão (`lpoptions -d M1132_arm64`). Já era a padrão do sistema e do usuário. Também foi desligado o "Usar última impressora" (`defaults write org.cups.PrintingPrefs UseLastPrinter -bool false`), porque o macOS guardava a fila antiga como padrão em outras redes. Para desfazer: `defaults delete org.cups.PrintingPrefs UseLastPrinter`.
-- [x] Conferir as opções no diálogo de impressão do macOS (densidade, economia, tipo de papel, cópias) e **a escolha do tamanho do papel** (o Diego sentiu falta disso no Word; lá o tamanho vem de Layout → Tamanho / Arquivo → Configurar Página, e no Preview/Safari aparece em "Tamanho do Papel").
-- [x] Imprimir um PDF pelo **Preview** e uma página pelo **Safari** (sobraram da Fase 5).
-- [x] Testar várias cópias e várias páginas na fila real: com `Collate` ligado deve sair 1,2,1,2; desligado, 1,1,2,2 (offline já conferido na revisão da Fase 3). ✅ Jobs 604 (ligado) e 605 (desligado) saíram na ordem certa.
-- [ ] ⏳ **Depois de ~1 semana de uso sem problemas (a partir de 19/10/2026):** remover a fila antiga (o macOS ainda manda jobs "Supplies Levels" para ela, que rodam o `usbink` da HP) (`lpadmin -x HP_LaserJet_Professional_M1132_MFP`). Remover os drivers Intel da HP é opcional e fica para outra decisão.
+- [x] Make `M1132_arm64` the default (`lpoptions -d M1132_arm64`). It already was, for the system and the user. "Use last printer" was also turned off (`defaults write org.cups.PrintingPrefs UseLastPrinter -bool false`), because macOS kept the old queue as the default on other networks. To undo: `defaults delete org.cups.PrintingPrefs UseLastPrinter`.
+- [x] Check the options in the macOS print dialog (density, EconoMode, paper type, copies) and **the paper size choice** (Diego missed it in Word; there the size comes from Layout → Size / File → Page Setup, and in Preview/Safari it is under "Paper Size").
+- [x] Print a PDF from **Preview** and a page from **Safari** (left over from Phase 5).
+- [x] Test multiple copies and multiple pages on the real queue: with `Collate` on it should come out 1,2,1,2; off, 1,1,2,2 (already checked offline in the Phase 3 review). ✅ Jobs 604 (on) and 605 (off) came out in the right order.
+- [ ] ⏳ **After ~1 week of trouble-free use (from 2026-10-19):** remove the old queue (macOS still sends "Supplies Levels" jobs to it, which run HP's `usbink`) (`sudo lpadmin -x HP_LaserJet_Professional_M1132_MFP`). Removing HP's Intel drivers is optional and left for a separate decision.
 - [x] Commit: `Fase 6: uso diário`.
 
 ---
 
-## Fase 7: Publicar no GitHub 🟢 leve (~30 min)
+## Phase 7: Publish on GitHub 🟢 light (~30 min)
 
-- [ ] Decidir: **público ou privado** (ainda em aberto).
-- [ ] README em PT e EN: problema (macOS 27 + filtros Intel), instalação, rollback, status testado (M1132 MFP, macOS 27.0.1, data) e créditos/GPL.
-- [ ] `gh repo create Diego-Rebello/hp-m1132-arm64 --private|--public --source . --push`
-- [ ] Opcional: abrir uma issue ou PR no `faradayfury/printer-all` com o relatório de teste da M1132 e o problema dos PPDs foomatic + SIP.
-
----
-
-## Fora do escopo (anotar e não fazer agora)
-
-- **Scanner da M1132** (é multifuncional): o scanner usa outro caminho (ICA/eSCL); provavelmente também é Intel. Investigar depois, como projeto separado.
-- Suporte a outros modelos.
-
-## Planos B (se a Fase 5 falhar de vez)
-
-1. ~~Trocar para `rastertoxqx.c` (mesmo repo) ou outro Model do `rastertozjs` se for problema de protocolo.~~ Resolvido na Fase 5 com o Model 4.
-2. Portar o filtro `hpcups` do HPLIP (bem mais pesado: várias sessões).
-3. Servidor de impressão em Raspberry Pi/Linux com `foo2zjs -z2`/HPLIP, compartilhado por IPP (o Mac imprime via AirPrint).
+- [x] Decide: **public or private** → **public**.
+- [x] All documentation in English (README, PLAN, NOTICE, `docs/parameters.md`, script comments and messages). Files renamed: `docs/parametros.md` → `docs/parameters.md`, `test/regua-*.pdf` → `test/ruler-*.pdf`.
+- [x] README: problem (macOS 27 + Intel filters), install, rollback, tested status (M1132 MFP, macOS 27.0.1, date) and credits/GPL.
+- [x] Printer serial number removed before publishing.
+- [ ] `gh repo create Diego-Rebello/hp-m1132-arm64 --public --source . --push`
+- [ ] Optional: open an issue or PR on `faradayfury/printer-all` with the M1132 test report and the foomatic-PPD + SIP problem.
 
 ---
 
-## Registro
+## Out of scope (note it, do not do it now)
 
-| Data | Fase | Resultado / decisões | Commit |
+- **M1132 scanner** (it is a multifunction device): the scanner uses a different path (ICA/eSCL) and is probably Intel-only too. Investigate later, as a separate project.
+- Support for other models.
+
+## Plan B (if Phase 5 fails for good)
+
+1. ~~Switch to `rastertoxqx.c` (same repo) or another `rastertozjs` Model if it is a protocol problem.~~ Solved in Phase 5 with Model 4.
+2. Port the `hpcups` filter from HPLIP (much heavier: several sessions).
+3. Print server on a Raspberry Pi/Linux with `foo2zjs -z2`/HPLIP, shared over IPP (the Mac prints via AirPrint).
+
+---
+
+## Log
+
+| Date | Phase | Result / decisions | Commit |
 |---|---|---|---|
-| 2026-10-12 | 0 | Diagnóstico concluído (ver Contexto). `rastertoxqx` compila em arm64. Projeto criado em `~/hp-m1132-arm64`. | — |
-| 2026-10-12 | 1 | Estrutura criada; `rastertoxqx` e `xqxdecode` compilam arm64 sem avisos (`-Wall`). Fontes copiadas sem modificação de printer-all@b6601e3. | (este) |
-| 2026-10-12 | 2 | **M1132 é ZjStream, não XQX.** Prova decisiva: o filtro Mac da própria HP para a série M1130/M1210 só contém `JZJZ`/`ENTER LANGUAGE` do ZJS. O hpcups (HPLIP 3.12.11) põe a M1132 no grupo `ljzjstream` da P1102; o `models.dat` (`LJZjsMono`, sem firmware) não decide; o foo2zjs não lista a M1132. Base trocada para `rastertozjs.c` Model 2 (`-z2`); `zjsdecode` vem do foo2zjs (espelho koenkooi@e04290d). Parâmetros em `docs/parametros.md`: só 600×600, margens de 12 pt (HP), `Density` numérico 1–5, Model padrão do filtro = 1 → **patch na Fase 3**. Página-régua: `scripts/make_testpage.py`. | (este) |
-| 2026-10-12 | 3 | PPD próprio (13 tamanhos, margens de 12 pt, `MediaType`, `Density` 1–5, `EconoMode`) e patch `DEFAULT_MODEL=2`. Pipeline offline OK: `DMPAPER` certo nos 13 tamanhos e opções conferidas no fluxo; a página decodificada pelo `zjsdecode -d` saiu correta. **Achados:** (1) no macOS o raster cobre só a área imprimível (A4 = 4761×6816), a mesma forma que o hpcups manda; (2) `cupsfilter -m printer/foo` ignora os filtros do PPD, então a cadeia completa só é testada na fila real; (3) `cupsFilter2` passou a usar `application/vnd.hp-zjs`; (4) 2 cópias × 2 páginas devem sair sem agrupar (1,1,2,2): conferir na Fase 6. | (este) |
-| 2026-10-12 | 3 (revisão) | Correções do `/code-review`: códigos de papel da HP via `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283); `EconoMode` `True`/`False`; filtro lê o PPD da fila (Model, padrões de `Density`/`EconoMode`/`Collate`); cópias por `argv[4]` e agrupamento feito pelo filtro (opção `Collate`); `DEFAULT_MODEL` no código com `#error`; PPD gerado por `scripts/make_ppd.py` (`make ppd`). Tudo conferido offline com `zjsdecode`. | (este) |
-| 2026-10-12 | 4 | `install.sh`/`uninstall.sh` criados; instalação feita pelo Diego no Terminal.app (`cd ~/hp-m1132-arm64 && sudo ./scripts/install.sh`; o `! sudo` dentro do zsh não serve). Fila `M1132_arm64` ativa, com a mesma URI USB, sem compartilhamento; filtro `root:wheel 755`, arm64, ad hoc; PPD da fila confere (`cupsFilter2` → filtro instalado). Fila antiga intacta. Nada foi impresso ainda: isso é a Fase 5. | (este) |
-| 2026-10-12 | 5 | **Imprimindo.** Com o Model 2, o filtro arm64 rodou sem erro (o `badarch` foi resolvido), mas o USB travou: `WritePipe e00002ed` (*not responding*), 0 bytes enviados, mesmo depois de desligar e ligar a impressora. Um PJL raw foi aceito, então o USB funciona. O filtro Intel da HP rodou no Terminal pelo Rosetta (com `DEVICE_URI` falso) e o fluxo dele foi aceito pela impressora. A bisseção (`tools/zjsmix.py`, `tools/zjsdump.py`) mostrou que o problema é a **estrutura ZJS da P1102**, não o PJL: nosso JBIG dentro da estrutura da HP imprimiu perfeito. Criado o **Model 4 (`MODEL_HP_M1132`)**, agora o padrão e com `cupsModelNumber: 4` no PPD: PJL em CRLF com `ENTER LANGUAGE=ZJS`, `START_DOC` só com `DMCOLLATE`, itens em ordem de ID, sem `RET` e sem plano. O Model 2 continua idêntico byte a byte. Reinstalado pelo Diego (`sudo ./scripts/install.sh`). Página-régua de 1 e 2 páginas e documento do Word **perfeitos** em A4. Pendências para a Fase 6: Preview/Safari e a escolha do papel no diálogo. Debug log do CUPS ligado durante o teste e desligado no fim. Detalhes em `docs/parametros.md` §5. | (este) |
-| 2026-10-12 | 6 | Uso diário OK. `M1132_arm64` já era a padrão; foi desligado o `UseLastPrinter` do macOS, que guardava a fila antiga como padrão em outras redes. 2 cópias da régua de 2 páginas: `Collate` ligado deu 1,2,1,2 e desligado deu 1,1,2,2. O Diego conferiu o diálogo (tamanho do papel, Intercalar, Recursos da Impressora: Media Type, Density, EconoMode) e imprimiu pelo **Preview** e pelo **Safari**: tudo certo. **Pendente:** remover a fila antiga depois de ~1 semana sem problemas (a partir de 19/10/2026). | (este) |
+| 2026-10-12 | 0 | Diagnosis done (see Context). `rastertoxqx` builds for arm64. Project created in `~/hp-m1132-arm64`. | — |
+| 2026-10-12 | 1 | Structure created; `rastertoxqx` and `xqxdecode` build for arm64 with no warnings (`-Wall`). Sources copied unmodified from printer-all@b6601e3. | (this one) |
+| 2026-10-12 | 2 | **The M1132 is ZjStream, not XQX.** Decisive evidence: HP's own Mac filter for the M1130/M1210 series contains only ZJS's `JZJZ`/`ENTER LANGUAGE`. hpcups (HPLIP 3.12.11) puts the M1132 in the P1102's `ljzjstream` group; `models.dat` (`LJZjsMono`, no firmware) does not decide it; foo2zjs does not list the M1132. Base switched to `rastertozjs.c` Model 2 (`-z2`); `zjsdecode` comes from foo2zjs (mirror koenkooi@e04290d). Parameters in `docs/parameters.md`: 600×600 only, 12 pt margins (HP), numeric `Density` 1–5, the filter's default Model = 1 → **patch in Phase 3**. Ruler page: `scripts/make_testpage.py`. | (this one) |
+| 2026-10-12 | 3 | Own PPD (13 sizes, 12 pt margins, `MediaType`, `Density` 1–5, `EconoMode`) and the `DEFAULT_MODEL=2` patch. Offline pipeline OK: correct `DMPAPER` for all 13 sizes and options checked in the stream; the page decoded by `zjsdecode -d` came out right. **Findings:** (1) on macOS the raster covers only the printable area (A4 = 4761×6816), the same shape hpcups sends; (2) `cupsfilter -m printer/foo` ignores the PPD's filters, so the full chain is only tested on the real queue; (3) `cupsFilter2` now uses `application/vnd.hp-zjs`; (4) 2 copies × 2 pages should come out uncollated (1,1,2,2): to check in Phase 6. | (this one) |
+| 2026-10-12 | 3 (review) | Fixes from `/code-review`: HP paper codes via `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283); `EconoMode` `True`/`False`; the filter reads the queue's PPD (Model, `Density`/`EconoMode`/`Collate` defaults); copies from `argv[4]` and collation done by the filter (`Collate` option); `DEFAULT_MODEL` in the code with `#error`; PPD generated by `scripts/make_ppd.py` (`make ppd`). All checked offline with `zjsdecode`. | (this one) |
+| 2026-10-12 | 4 | `install.sh`/`uninstall.sh` written; install run by Diego in Terminal.app (`cd ~/hp-m1132-arm64 && sudo ./scripts/install.sh`; `! sudo` inside zsh does not work). Queue `M1132_arm64` enabled, same USB URI, unshared; filter `root:wheel 755`, arm64, ad hoc; the queue's PPD checks out (`cupsFilter2` → installed filter). Old queue intact. Nothing printed yet: that is Phase 5. | (this one) |
+| 2026-10-12 | 5 | **Printing.** With Model 2 the arm64 filter ran without errors (the `badarch` problem was solved), but USB stalled: `WritePipe e00002ed` (*not responding*), 0 bytes sent, even after turning the printer off and on. A raw PJL job was accepted, so USB works. HP's Intel filter ran in Terminal under Rosetta (with a fake `DEVICE_URI`) and the printer accepted its stream. Bisection (`tools/zjsmix.py`, `tools/zjsdump.py`) showed the problem is the **P1102 ZJS structure**, not the PJL: our JBIG inside HP's structure printed perfectly. Added **Model 4 (`MODEL_HP_M1132`)**, now the default and with `cupsModelNumber: 4` in the PPD: PJL with CRLF and `ENTER LANGUAGE=ZJS`, `START_DOC` with `DMCOLLATE` only, items in ID order, no `RET` and no plane. Model 2 is still byte-for-byte identical. Reinstalled by Diego (`sudo ./scripts/install.sh`). Ruler page (1 and 2 pages) and a Word document **perfect** on A4. Left for Phase 6: Preview/Safari and the paper choice in the dialog. CUPS debug log turned on during the test and off at the end. Details in `docs/parameters.md` §5. | (this one) |
+| 2026-10-12 | 6 | Daily use OK. `M1132_arm64` was already the default; macOS's `UseLastPrinter` was turned off, since it kept the old queue as the default on other networks. 2 copies of the 2-page ruler: `Collate` on gave 1,2,1,2 and off gave 1,1,2,2. Diego checked the dialog (paper size, Collate, Printer Features: Media Type, Density, EconoMode) and printed from **Preview** and **Safari**: all fine. **Pending:** remove the old queue after ~1 week without problems (from 2026-10-19). | (this one) |
+| 2026-10-12 | 7 | Repository set to **public**. All documentation translated to English; files with Portuguese names renamed. English README (problem, install, rollback, tested status, credits). Printer serial removed from PLAN.md. | (this one) |

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lista chunks e itens de um fluxo ZJS (big-endian). Uso: zjsdump.py arquivo.zjs"""
+"""Lists the chunks and items of a ZJS stream (big-endian). Usage: zjsdump.py file.zjs"""
 import struct, sys
 
 T = {0: "START_DOC", 1: "END_DOC", 2: "START_PAGE", 3: "END_PAGE", 4: "JBIG_BIH",
@@ -17,7 +17,7 @@ print(f"PJL ({p} bytes): {data[:p]!r}")
 p += 4
 while p + 16 <= len(data):
     if data[p:p + 9] == b"\x1b%-12345X":
-        print(f"UEL @{p}; resto: {data[p:p + 120]!r}")
+        print(f"UEL @{p}; rest: {data[p:p + 120]!r}")
         break
     size, typ, items, res, sig = struct.unpack(">IIIHH", data[p:p + 16])
     name = T.get(typ, hex(typ))
@@ -34,7 +34,7 @@ while p + 16 <= len(data):
         if typ == 4:
             print(f"    BIH: {data[q:p + size].hex()}")
     if size < 16:
-        print("tamanho inválido; parando"); break
+        print("invalid size; stopping"); break
     p += size
 else:
-    print(f"fim do arquivo @{p} (total {len(data)})")
+    print(f"end of file @{p} (total {len(data)})")
