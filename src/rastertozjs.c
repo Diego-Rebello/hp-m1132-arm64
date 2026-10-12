@@ -8,6 +8,7 @@
  *   Model 1 (HP1020):  HP LaserJet 1018, 1020, 1022, M1319, P2035
  *   Model 2 (HP Pro):  HP LaserJet Pro P1102, P1102w, P1566, P1606dn
  *   Model 3 (HP Pro CP): HP LaserJet Pro CP1025nw (color)
+ *   Model 4 (HP M1132): HP LaserJet Professional M1132 MFP (hp-m1132-arm64)
  *
  * Pipeline: PDF → cgpdftoraster (macOS built-in) → rastertozjs → printer
  *
@@ -36,14 +37,19 @@
 #define MODEL_HP1020    1
 #define MODEL_HP_PRO    2
 #define MODEL_HP_PRO_CP 3
+/* hp-m1132-arm64: the M1132 stalls the USB pipe on the Model 2 stream.
+ * Model 4 copies what HP's own Mac filter sends: PJL with CRLF and
+ * ENTER LANGUAGE=ZJS, START_DOC with DMCOLLATE only, page items in ID order
+ * with ECONOMODE, no RET and no START_PLANE/END_PLANE (Phase 5). */
+#define MODEL_HP_M1132  4
 
 /* hp-m1132-arm64: the model comes from *cupsModelNumber in the PPD ($PPD);
  * DEFAULT_MODEL is only the fallback when there is no PPD (offline tests). */
 #ifndef DEFAULT_MODEL
-#define DEFAULT_MODEL   MODEL_HP_PRO
+#define DEFAULT_MODEL   MODEL_HP_M1132
 #endif
-#if DEFAULT_MODEL < MODEL_2300DL || DEFAULT_MODEL > MODEL_HP_PRO_CP
-#error "DEFAULT_MODEL must be 0..3"
+#if DEFAULT_MODEL < MODEL_2300DL || DEFAULT_MODEL > MODEL_HP_M1132
+#error "DEFAULT_MODEL must be 0..4"
 #endif
 
 /* hp-m1132-arm64: the ppd* API is deprecated in libcups but still the only
@@ -244,6 +250,7 @@ write_plane(int planeNum, BIE_CHAIN **root, FILE *fp, int model)
         break;
     case MODEL_HP_PRO:
     case MODEL_HP_PRO_CP:
+    case MODEL_HP_M1132:
         chunk_write(ZJT_END_JBIG, 0, 0, fp);
         break;
     }
@@ -268,7 +275,7 @@ write_plane(int planeNum, BIE_CHAIN **root, FILE *fp, int model)
 }
 
 static void
-start_doc(FILE *fp, int model, int density, int economode)
+start_doc(FILE *fp, int model, int density, int economode, const char *title)
 {
     char header[4] = "JZJZ";
     int nitems;
@@ -276,6 +283,28 @@ start_doc(FILE *fp, int model, int density, int economode)
     time_t now;
     struct tm *tmp;
     char datetime[14 + 1];
+
+    /* hp-m1132-arm64: HP's PJL for the M1132 (CRLF, explicit ZJS) */
+    if (model == MODEL_HP_M1132)
+    {
+        char name[64];
+        size_t n = 0;
+
+        for (; title && *title && n < sizeof(name) - 1; title++)
+            if (*title >= 0x20 && *title < 0x7f && *title != '"')
+                name[n++] = *title;
+        name[n] = '\0';
+
+        fprintf(fp, "\033%%-12345X@PJL USTATUS JOB=ON\r\n");
+        fprintf(fp, "@PJL USTATUS PAGE=ON\r\n");
+        fprintf(fp, "@PJL USTATUS DEVICE=ON\r\n");
+        fprintf(fp, "@PJL INFO STATUS\r\n");
+        if (n)
+            fprintf(fp, "@PJL JOB NAME=%s\r\n", name);
+        fprintf(fp, "@PJL SET DENSITY = %d\r\n", density);
+        fprintf(fp, "@PJL SET JAMRECOVERY = OFF\r\n");
+        fprintf(fp, "@PJL ENTER LANGUAGE=ZJS\r\n");
+    }
 
     /* PJL preamble for HP models */
     if (model == MODEL_HP1020 || model == MODEL_HP_PRO ||
@@ -329,6 +358,7 @@ start_doc(FILE *fp, int model, int density, int economode)
         break;
     case MODEL_HP_PRO:
     case MODEL_HP_PRO_CP:
+    case MODEL_HP_M1132:
         chunk_write_rsvd(ZJT_START_DOC, nitems * 0x0c, nitems, size, fp);
         break;
     }
@@ -363,6 +393,11 @@ end_doc(FILE *fp, int model)
         fprintf(fp, "\033%%-12345X@PJL EOJ\n");
         fprintf(fp, "\033%%-12345X");
     }
+    else if (model == MODEL_HP_M1132)
+    {
+        fprintf(fp, "\033%%-12345X@PJL EOJ\r\n");
+        fprintf(fp, "\033%%-12345X");
+    }
 }
 
 static void
@@ -373,6 +408,28 @@ start_page(FILE *fp, int model, int resX, int resY, int bpp,
            int copies, int economode)
 {
     int nitems = 12;
+
+    /* hp-m1132-arm64: same items and order as HP's filter */
+    if (model == MODEL_HP_M1132)
+    {
+        nitems = 13;
+        chunk_write_rsvd(ZJT_START_PAGE, nitems * 12, nitems,
+                         nitems * sizeof(ZJ_ITEM_UINT32), fp);
+        item_uint32_write(ZJI_DMPAPER, paperCode, fp);
+        item_uint32_write(ZJI_DMCOPIES, copies, fp);
+        item_uint32_write(ZJI_DMDEFAULTSOURCE, sourceCode, fp);
+        item_uint32_write(ZJI_DMMEDIATYPE, mediaCode, fp);
+        item_uint32_write(ZJI_NBIE, 1, fp);
+        item_uint32_write(ZJI_RESOLUTION_X, resX, fp);
+        item_uint32_write(ZJI_RESOLUTION_Y, resY, fp);
+        item_uint32_write(ZJI_RASTER_X, realWidth, fp);
+        item_uint32_write(ZJI_RASTER_Y, rasterH, fp);
+        item_uint32_write(ZJI_VIDEO_BPP, bpp, fp);
+        item_uint32_write(ZJI_VIDEO_X, realWidth / bpp, fp);
+        item_uint32_write(ZJI_VIDEO_Y, rasterH, fp);
+        item_uint32_write(ZJI_ECONOMODE, economode, fp);
+        return;
+    }
 
     switch (model)
     {
@@ -445,6 +502,7 @@ end_page(FILE *fp, int model)
     case MODEL_2300DL:
     case MODEL_HP1020:
     case MODEL_HP_PRO:
+    case MODEL_HP_M1132:
         chunk_write(ZJT_END_PAGE, 0, 0, fp);
         break;
     case MODEL_HP_PRO_CP:
@@ -574,7 +632,7 @@ parse_options(const char *options, int *density, int *economode, int *model,
         cupsMarkOptions(ppd, num_opts, opts);
 
         if (ppd->model_number >= MODEL_2300DL &&
-            ppd->model_number <= MODEL_HP_PRO_CP)
+            ppd->model_number <= MODEL_HP_M1132)
             *model = ppd->model_number;
         if ((choice = ppdFindMarkedChoice(ppd, "Density")) != NULL)
             set_density(choice->choice, density);
@@ -605,7 +663,7 @@ parse_options(const char *options, int *density, int *economode, int *model,
     if (val)
     {
         int m = atoi(val);
-        if (m >= 0 && m <= 3)
+        if (m >= 0 && m <= MODEL_HP_M1132)
             *model = m;
     }
 
@@ -677,7 +735,7 @@ main(int argc, char *argv[])
         return 1;
     }
 
-    start_doc(stdout, model, density, economode);
+    start_doc(stdout, model, density, economode, argv[3]);
 
     while (!Canceled && cupsRasterReadHeader2(ras, &header))
     {
@@ -784,7 +842,8 @@ main(int argc, char *argv[])
                    jbigW, cupsH, realWidth,
                    paperCode, mediaCode, sourceCode,
                    pfp != stdout ? 1 : copies, economode);
-        write_plane(4, &chain, pfp, model); /* plane 4 = K for mono */
+        /* hp-m1132-arm64: no START_PLANE/END_PLANE on the M1132 */
+        write_plane(model == MODEL_HP_M1132 ? 0 : 4, &chain, pfp, model);
         end_page(pfp, model);
 
         free(buf);

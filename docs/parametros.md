@@ -15,6 +15,8 @@ A hipótese da Fase 0 ("M1132 é XQX, como a P1102/M1212nf") estava errada: a pr
 
 Contradição anotada: o foo2zjs diz que a M1212nf é XQX, mas o driver Mac da HP para a série M1130/**M1210** é ZJS. Talvez o firmware aceite os dois; para nós não importa, seguimos o driver da própria HP.
 
+> **Corrigido na Fase 5:** o protocolo é ZJS mesmo, mas a M1132 **recusa a estrutura do Model 2** (P1102). Foi criado o Model 4, copiado do fluxo do filtro da HP. Ver §5.
+
 **Decisão:** trocar a base para `rastertozjs.c` (printer-all @ `b6601e3`) com **Model 2 = `MODEL_HP_PRO`**, que equivale a `foo2zjs -z2` (P1102/P1566/P1606dn). Validação offline com `zjsdecode` (foo2zjs).
 
 ## 2. Parâmetros para o PPD (Fase 3)
@@ -124,3 +126,31 @@ cupsfilter -p $PPD -m application/vnd.cups-raster [-o PageSize=Letter -o MediaTy
 ./rastertozjs 1 u t 1 "Density=5 EconoMode=on" out/teste.ras > out/teste.zjs
 ./zjsdecode < out/teste.zjs | grep -E "PJL SET|VIDEO|DMPAPER|DMMEDIA|DMCOPIES"
 ```
+
+## 5. Teste real (Fase 5): a M1132 não aceita o fluxo da P1102
+
+### Sintoma
+Com o Model 2, o filtro arm64 rodou sem erro (`badarch` resolvido), mas o backend `usb` falhou: `USB class driver WritePipe returned e00002ed` (*not responding*), `Sent 0 bytes`, e a fila parou. Desligar e ligar a impressora não mudou nada.
+
+### Como achamos a causa
+1. **O USB funciona:** um job raw de 42 bytes (`@PJL INFO STATUS`) foi aceito, e a impressora respondeu com status.
+2. **Referência da HP:** o filtro Intel da HP (`HPM1210_1130Raster.bundle/.../rastertozjs`) roda no Terminal pelo Rosetta com `PPD=out/hp1130.ppd DEVICE_URI=usb://…?serial=FAKE` (sem `DEVICE_URI` ele dá segfault em `initReadThread`). Ele escreve o job inteiro e depois fica esperando status pelo back channel (encerrado em 60 s). Esse fluxo, mandado raw, foi **aceito pela impressora**.
+3. **Bisseção com `tools/zjsmix.py`** (montagem de variantes) e `tools/zjsdump.py` (lista de chunks e itens):
+   - nosso ZJS com o PJL da HP → **recusado** (o PJL não é a causa);
+   - nosso JBIG com a estrutura da HP → **aceito e impresso perfeito**.
+
+### Diferenças (Model 2 → Model 4)
+| | Model 2 (P1102) | Model 4 (M1132 = filtro da HP) |
+|---|---|---|
+| PJL | `LF`, `@PJL JOB`, `SET ECONOMODE`, `SET RET`, `USTATUS TIMED = 30`, `JOBATTR` + `\0`, UEL antes de `JZJZ` | `CRLF`, `USTATUS JOB/PAGE/DEVICE=ON`, `INFO STATUS`, `JOB NAME=<título>`, `SET DENSITY = n`, `SET JAMRECOVERY = OFF`, **`ENTER LANGUAGE=ZJS`** |
+| START_DOC | `DMCOLLATE`, `DMDUPLEX` | só `DMCOLLATE` (reservado `0x0c`) |
+| START_PAGE | itens fora de ordem, `RET=1`, `ECONOMODE` só se ligado | 13 itens em ordem de ID: `DMPAPER, DMCOPIES, DMDEFAULTSOURCE, DMMEDIATYPE, NBIE, RESOLUTION_X/Y, RASTER_X/Y, VIDEO_BPP, VIDEO_X/Y, ECONOMODE` |
+| Plano | `START_PLANE(4)` … `END_PLANE` | sem plano |
+| JBIG | igual (`MX=16`); a HP usa `MX=0`, mas o nosso imprimiu certo | — |
+
+Não testamos qual diferença sozinha trava a impressora (cada teste aceito gasta uma folha); o Model 4 segue a HP em tudo, menos no JBIG.
+
+### Observações
+- O `zjsdecode` do foo2zjs não lê o fluxo do Model 4 (espera `JZJZ` logo depois do UEL). Usar `python3 -I tools/zjsdump.py arquivo.zjs`.
+- O filtro da HP faz controle de fluxo pelo back channel (espera o status de cada página). O nosso não faz: o USB segura o envio sozinho, e um job de 2 páginas saiu sem problema.
+- A página impressa pelo fluxo da HP saiu com fundo preto e esticada, porque o raster foi gerado para o nosso PPD (polaridade e opções diferentes). Isso não importa: serviu só para provar que a estrutura é aceita.

@@ -1,5 +1,5 @@
 *PPD-Adobe: "4.3"
-*% HP LaserJet Professional M1132 MFP: native arm64 CUPS driver (rastertozjs, ZjStream Model 2)
+*% HP LaserJet Professional M1132 MFP: native arm64 CUPS driver (rastertozjs, ZjStream Model 4)
 *% https://github.com/Diego-Rebello/hp-m1132-arm64 - GPL-2.0-or-later
 *% Gerado por scripts/make_ppd.py; nao edite a mao.
 *FormatVersion: "4.3"
@@ -23,7 +23,7 @@
 *1284DeviceID: "MFG:Hewlett-Packard;MDL:HP LaserJet Professional M1132 MFP;CMD:ZJS,PJL,ACL;"
 *cupsVersion: 2.2
 *% O filtro le o Model daqui (ppd->model_number) e os padroes abaixo via $PPD.
-*cupsModelNumber: 2
+*cupsModelNumber: 4
 *cupsManualCopies: False
 *cupsFilter2: "application/vnd.cups-raster application/vnd.hp-zjs 0 /Library/Printers/hp-m1132-arm64/rastertozjs"
 *cupsFilter: "application/vnd.cups-raster 0 /Library/Printers/hp-m1132-arm64/rastertozjs"

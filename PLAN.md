@@ -117,10 +117,10 @@ O Claude não digita senha. Os comandos com `sudo` são passados prontos para ro
 
 Meta: página impressa corretamente.
 
-- [ ] Impressora ligada, USB conectado, papel A4.
-- [ ] `lp -d M1132_arm64 teste.pdf`
-- [ ] Ver só as linhas relevantes do log: `grep "Job <n>" /var/log/cups/error_log | grep -iE "error|rastertozjs|badarch|sent|PAGE" | tail -30`.
-- [ ] Árvore de problemas:
+- [x] Impressora ligada, USB conectado, papel A4.
+- [x] `lp -d M1132_arm64 teste.pdf`
+- [x] Ver só as linhas relevantes do log: `grep "Job <n>" /var/log/cups/error_log | grep -iE "error|rastertozjs|badarch|sent|PAGE" | tail -30`.
+- [x] Árvore de problemas (a falha real foi outra: o USB travava com o fluxo do Model 2; ver Registro e `docs/parametros.md` §5):
   | Sintoma | Provável causa | Ação |
   |---|---|---|
   | `badarch` de novo | binário errado instalado | `lipo -archs` no instalado; reinstalar |
@@ -129,19 +129,20 @@ Meta: página impressa corretamente.
   | Impressora não reage / luz pisca | protocolo errado | voltar à Fase 2 e testar o caminho inverso (`rastertoxqx`, que está no histórico do git), ou o Model 1 do `rastertozjs` |
   | Imprime lixo / página em branco | parâmetros de página/resolução | comparar com `zjsdecode` e ajustar o PPD |
   | Margem cortada / deslocada | `ImageableArea`, ou a impressora não centraliza a imagem (o macOS manda só a área imprimível) | medir com a página-régua; ajustar as margens do PPD |
-- [ ] Testar um PDF real, um documento do Pages/Word e uma impressão pelo Safari.
-- [ ] Registrar o resultado (inclusive falhas) no Registro e commitar.
+- [x] Testar um documento real: **Word** perfeito em A4. ~~Preview e Safari~~ → passaram para a Fase 6, junto com a conferência do diálogo.
+- [x] Registrar o resultado (inclusive falhas) no Registro e commitar.
 
-**Pronto quando:** página de teste e um documento real saem corretos.
+**Pronto quando:** página de teste e um documento real saem corretos. ✅ Página-régua (1 e 2 páginas) e documento do Word perfeitos, com o **Model 4**.
 
 ---
 
 ## Fase 6: Acabamento e uso diário 🟢 leve (~30–45 min)
 
 - [ ] Tornar `M1132_arm64` a padrão (`lpoptions -d M1132_arm64`).
-- [ ] Conferir as opções no diálogo de impressão do macOS (densidade, economia, tipo de papel, cópias).
+- [ ] Conferir as opções no diálogo de impressão do macOS (densidade, economia, tipo de papel, cópias) e **a escolha do tamanho do papel** (o Diego sentiu falta disso no Word; lá o tamanho vem de Layout → Tamanho / Arquivo → Configurar Página, e no Preview/Safari aparece em "Tamanho do Papel").
+- [ ] Imprimir um PDF pelo **Preview** e uma página pelo **Safari** (sobraram da Fase 5).
 - [ ] Testar várias cópias e várias páginas na fila real: com `Collate` ligado deve sair 1,2,1,2; desligado, 1,1,2,2 (offline já conferido na revisão da Fase 3).
-- [ ] **Depois de ~1 semana de uso sem problemas:** remover a fila antiga (`lpadmin -x HP_LaserJet_Professional_M1132_MFP`). Remover os drivers Intel da HP é opcional e fica para outra decisão.
+- [ ] **Depois de ~1 semana de uso sem problemas:** remover a fila antiga (o macOS ainda manda jobs "Supplies Levels" para ela, que rodam o `usbink` da HP) (`lpadmin -x HP_LaserJet_Professional_M1132_MFP`). Remover os drivers Intel da HP é opcional e fica para outra decisão.
 - [ ] Commit: `Fase 6: uso diário`.
 
 ---
@@ -162,7 +163,7 @@ Meta: página impressa corretamente.
 
 ## Planos B (se a Fase 5 falhar de vez)
 
-1. Trocar para `rastertoxqx.c` (mesmo repo) ou outro Model do `rastertozjs` se for problema de protocolo.
+1. ~~Trocar para `rastertoxqx.c` (mesmo repo) ou outro Model do `rastertozjs` se for problema de protocolo.~~ Resolvido na Fase 5 com o Model 4.
 2. Portar o filtro `hpcups` do HPLIP (bem mais pesado: várias sessões).
 3. Servidor de impressão em Raspberry Pi/Linux com `foo2zjs -z2`/HPLIP, compartilhado por IPP (o Mac imprime via AirPrint).
 
@@ -178,3 +179,4 @@ Meta: página impressa corretamente.
 | 2026-10-12 | 3 | PPD próprio (13 tamanhos, margens de 12 pt, `MediaType`, `Density` 1–5, `EconoMode`) e patch `DEFAULT_MODEL=2`. Pipeline offline OK: `DMPAPER` certo nos 13 tamanhos e opções conferidas no fluxo; a página decodificada pelo `zjsdecode -d` saiu correta. **Achados:** (1) no macOS o raster cobre só a área imprimível (A4 = 4761×6816), a mesma forma que o hpcups manda; (2) `cupsfilter -m printer/foo` ignora os filtros do PPD, então a cadeia completa só é testada na fila real; (3) `cupsFilter2` passou a usar `application/vnd.hp-zjs`; (4) 2 cópias × 2 páginas devem sair sem agrupar (1,1,2,2): conferir na Fase 6. | (este) |
 | 2026-10-12 | 3 (revisão) | Correções do `/code-review`: códigos de papel da HP via `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283); `EconoMode` `True`/`False`; filtro lê o PPD da fila (Model, padrões de `Density`/`EconoMode`/`Collate`); cópias por `argv[4]` e agrupamento feito pelo filtro (opção `Collate`); `DEFAULT_MODEL` no código com `#error`; PPD gerado por `scripts/make_ppd.py` (`make ppd`). Tudo conferido offline com `zjsdecode`. | (este) |
 | 2026-10-12 | 4 | `install.sh`/`uninstall.sh` criados; instalação feita pelo Diego no Terminal.app (`cd ~/hp-m1132-arm64 && sudo ./scripts/install.sh`; o `! sudo` dentro do zsh não serve). Fila `M1132_arm64` ativa, com a mesma URI USB, sem compartilhamento; filtro `root:wheel 755`, arm64, ad hoc; PPD da fila confere (`cupsFilter2` → filtro instalado). Fila antiga intacta. Nada foi impresso ainda: isso é a Fase 5. | (este) |
+| 2026-10-12 | 5 | **Imprimindo.** Com o Model 2, o filtro arm64 rodou sem erro (o `badarch` foi resolvido), mas o USB travou: `WritePipe e00002ed` (*not responding*), 0 bytes enviados, mesmo depois de desligar e ligar a impressora. Um PJL raw foi aceito, então o USB funciona. O filtro Intel da HP rodou no Terminal pelo Rosetta (com `DEVICE_URI` falso) e o fluxo dele foi aceito pela impressora. A bisseção (`tools/zjsmix.py`, `tools/zjsdump.py`) mostrou que o problema é a **estrutura ZJS da P1102**, não o PJL: nosso JBIG dentro da estrutura da HP imprimiu perfeito. Criado o **Model 4 (`MODEL_HP_M1132`)**, agora o padrão e com `cupsModelNumber: 4` no PPD: PJL em CRLF com `ENTER LANGUAGE=ZJS`, `START_DOC` só com `DMCOLLATE`, itens em ordem de ID, sem `RET` e sem plano. O Model 2 continua idêntico byte a byte. Reinstalado pelo Diego (`sudo ./scripts/install.sh`). Página-régua de 1 e 2 páginas e documento do Word **perfeitos** em A4. Pendências para a Fase 6: Preview/Safari e a escolha do papel no diálogo. Debug log do CUPS ligado durante o teste e desligado no fim. Detalhes em `docs/parametros.md` §5. | (este) |
