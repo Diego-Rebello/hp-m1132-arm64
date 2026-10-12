@@ -59,6 +59,7 @@ This removes the `M1132_arm64` queue, the filter and the PPD.
 ## Testing without the printer
 
 ```sh
+mkdir -p out
 python3 scripts/make_testpage.py test     # test/ruler-a4.pdf and test/ruler-letter.pdf
 cupsfilter -p ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd \
   -m application/vnd.cups-raster test/ruler-a4.pdf > out/test.ras

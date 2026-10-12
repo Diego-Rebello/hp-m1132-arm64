@@ -6,10 +6,16 @@ import struct, sys
 src, dst, *flags = sys.argv[1:]
 d = open(src, "rb").read()
 p = d.find(b"JZJZ")
+if p < 0:
+    sys.exit(f"{src}: no JZJZ header (not a ZJS stream?)")
 pjl, p = d[:p], p + 4
 chunks = []
 while d[p:p + 4] != b"\x1b%-1":
+    if p + 16 > len(d):
+        sys.exit(f"{src}: truncated at @{p} (no trailing UEL)")
     size, typ = struct.unpack(">II", d[p:p + 8])
+    if size < 16 or p + size > len(d):
+        sys.exit(f"{src}: invalid chunk size {size} at @{p}")
     chunks.append((typ, d[p:p + size]))
     p += size
 # only up to the first END_PAGE

@@ -13,6 +13,8 @@ I = {0: "PAGECOUNT", 1: "DMCOLLATE", 2: "DMDUPLEX", 3: "DMPAPER", 4: "DMCOPIES",
 
 data = open(sys.argv[1], "rb").read()
 p = data.find(b"JZJZ")
+if p < 0:
+    sys.exit(f"{sys.argv[1]}: no JZJZ header (not a ZJS stream?)")
 print(f"PJL ({p} bytes): {data[:p]!r}")
 p += 4
 while p + 16 <= len(data):

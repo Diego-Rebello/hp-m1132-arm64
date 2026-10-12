@@ -194,18 +194,19 @@ output_jbig(unsigned char *start, size_t len, void *cbarg)
 #define PADTO   4
 #define EXTRA_PAD 16
 
+/* A usable chain starts with the 20-byte BIH and has at least one BID */
 static int
+chain_valid(const BIE_CHAIN *root)
+{
+    return root && root->next && root->len == 20;
+}
+
+static void
 write_plane(int planeNum, BIE_CHAIN **root, FILE *fp, int model)
 {
-    BIE_CHAIN *current = *root;
+    BIE_CHAIN *current;
     BIE_CHAIN *next;
     int i, len, pad_len;
-
-    if (!current || !current->next || current->len != 20)
-    {
-        fprintf(stderr, "ERROR: rastertozjs: invalid JBIG data\n");
-        return 1;
-    }
 
     if (planeNum)
     {
@@ -270,8 +271,6 @@ write_plane(int planeNum, BIE_CHAIN **root, FILE *fp, int model)
             chunk_write(ZJT_END_PLANE, 0, 0, fp);
         }
     }
-
-    return 0;
 }
 
 static void
@@ -299,8 +298,11 @@ start_doc(FILE *fp, int model, int density, int economode, const char *title)
         fprintf(fp, "@PJL USTATUS PAGE=ON\r\n");
         fprintf(fp, "@PJL USTATUS DEVICE=ON\r\n");
         fprintf(fp, "@PJL INFO STATUS\r\n");
+        /* Always open the job so the EOJ in end_doc has a matching JOB */
         if (n)
             fprintf(fp, "@PJL JOB NAME=%s\r\n", name);
+        else
+            fprintf(fp, "@PJL JOB\r\n");
         fprintf(fp, "@PJL SET DENSITY = %d\r\n", density);
         fprintf(fp, "@PJL SET JAMRECOVERY = OFF\r\n");
         fprintf(fp, "@PJL ENTER LANGUAGE=ZJS\r\n");
@@ -690,6 +692,7 @@ main(int argc, char *argv[])
     cups_page_header2_t header;
     int                 fd;
     int                 page = 0;
+    int                 failed = 0;
     int                 density = 3;
     int                 economode = 0;
     int                 model = DEFAULT_MODEL;
@@ -838,6 +841,17 @@ main(int argc, char *argv[])
         jbg_enc_out(&se);
         jbg_enc_free(&se);
 
+        /* Check before START_PAGE so a bad page never reaches the printer */
+        if (!chain_valid(chain))
+        {
+            fprintf(stderr, "ERROR: rastertozjs: invalid JBIG data on page %d\n",
+                    page);
+            free_chain(chain);
+            free(buf);
+            failed = 1;
+            break;
+        }
+
         start_page(pfp, model, 600, resY, bpp,
                    jbigW, cupsH, realWidth,
                    paperCode, mediaCode, sourceCode,
@@ -869,5 +883,5 @@ main(int argc, char *argv[])
     cupsRasterClose(ras);
     if (fd != 0) close(fd);
 
-    return Canceled ? 1 : 0;
+    return (Canceled || failed) ? 1 : 0;
 }

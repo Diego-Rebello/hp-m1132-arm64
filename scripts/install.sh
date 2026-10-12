@@ -32,6 +32,10 @@ if [ -z "${URI:-}" ]; then
 fi
 echo "URI: $URI"
 
+# Validate the PPD before touching /Library. Filter errors are ignored here
+# because the filter is not installed yet; the full check runs below.
+cupstestppd -q -I filters "$ROOT/ppd/$PPD_NAME" || die "cupstestppd rejected ppd/$PPD_NAME; nothing was installed"
+
 # Filter: root:wheel 755, otherwise CUPS refuses to run it.
 install -d -o root -g wheel -m 755 "$FILTER_DIR"
 install -o root -g wheel -m 755 "$ROOT/rastertozjs" "$FILTER"
@@ -43,7 +47,7 @@ install -o root -g wheel -m 644 "$ROOT/ppd/$PPD_NAME" "$PPD_DEST"
 echo "PPD: $PPD_DEST"
 
 # The filter exists now, so cupstestppd can validate the whole PPD.
-cupstestppd -q "$PPD_DEST" || die "cupstestppd rejected the installed PPD"
+cupstestppd -q "$PPD_DEST" || die "cupstestppd rejected the installed PPD; undo with: sudo $ROOT/scripts/uninstall.sh"
 
 lpadmin -p "$QUEUE" -E -v "$URI" -P "$PPD_DEST" -D "$DESC" -o printer-is-shared=false
 echo

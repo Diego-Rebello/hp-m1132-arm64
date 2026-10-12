@@ -121,13 +121,14 @@ A4 at 600 dpi is 4961 × 7016 px for the whole page. What goes to the printer is
 
 ### How to repeat
 ```sh
+mkdir -p out
 PPD=ppd/HP-LaserJet_Professional_M1132_MFP-arm64.ppd
 cupsfilter -p $PPD -m application/vnd.cups-raster [-o PageSize=Letter -o MediaType=Heavy -o copies=2] test/ruler-a4.pdf > out/test.ras
-./rastertozjs 1 u t 1 "Density=5 EconoMode=on" out/test.ras > out/test.zjs
+./rastertozjs 1 u t 1 "Model=2 Density=5 EconoMode=on" out/test.ras > out/test.zjs
 ./zjsdecode < out/test.zjs | grep -E "PJL SET|VIDEO|DMPAPER|DMMEDIA|DMCOPIES"
 ```
 
-Note: `zjsdecode` cannot read the Model 4 stream (see §5). For Model 4, use `python3 -I tools/zjsdump.py out/test.zjs`, or pass `Model=2` in `argv[5]` to get a stream `zjsdecode` can decode.
+Note: `Model=2` is needed because the default is now Model 4, which `zjsdecode` cannot read (see §5). To check a Model 4 stream, drop `Model=2` and use `python3 -I tools/zjsdump.py out/test.zjs` instead.
 
 ## 5. Real test (Phase 5): the M1132 does not accept the P1102 stream
 
