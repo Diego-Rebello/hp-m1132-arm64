@@ -41,13 +41,13 @@ Objetivo: voltar a imprimir na HP LaserJet Professional M1132 MFP (USB) com um f
 
 Meta: repositório local enxuto, compilando, com licença correta. **Nada é instalado no sistema.**
 
-- [ ] Clonar `printer-all` em `vendor/printer-all-src/` (ignorado no git) e anotar o hash do commit usado (`b6601e3`).
-- [ ] Copiar só o necessário para `src/`: `rastertoxqx.c`, `foo2zjs/jbig.c`, `jbig.h`, `jbig_ar.c`, `jbig_ar.h`, `xqx.h`, `xqxdecode.c`.
-- [ ] `LICENSE` (GPL-2.0) + `NOTICE.md` com créditos: foo2zjs (Rick Richardson) e printer-all (faradayfury), com o commit de origem.
-- [ ] `Makefile` com os alvos `rastertoxqx`, `xqxdecode`, `clean` e `check` (`lipo -archs` precisa dar `arm64`).
-- [ ] `.gitignore` (binários, `vendor/`, `out/`).
-- [ ] `make && make check` sem avisos.
-- [ ] Commit: `Fase 1: estrutura e filtro XQX compilando`.
+- [x] Clonar `printer-all` em `vendor/printer-all-src/` (ignorado no git) e anotar o hash do commit usado (`b6601e3`).
+- [x] Copiar só o necessário para `src/`: `rastertoxqx.c`, `foo2zjs/jbig.c`, `jbig.h`, `jbig_ar.c`, `jbig_ar.h`, `xqx.h`, `xqxdecode.c`.
+- [x] `LICENSE` (GPL-2.0) + `NOTICE.md` com créditos: foo2zjs (Rick Richardson) e printer-all (faradayfury), com o commit de origem.
+- [x] `Makefile` com os alvos `rastertoxqx`, `xqxdecode`, `clean` e `check` (`lipo -archs` precisa dar `arm64`).
+- [x] `.gitignore` (binários, `vendor/`, `out/`).
+- [x] `make && make check` sem avisos. (Com `-Wextra` aparecem 5 avisos inofensivos; mantido `-Wall`, igual ao upstream.)
+- [x] Commit: `Fase 1: estrutura e filtro XQX compilando`.
 
 **Pronto quando:** `make check` imprime `arm64` e o repo tem só fontes + docs.
 
@@ -172,3 +172,4 @@ Meta: página impressa corretamente.
 | Data | Fase | Resultado / decisões | Commit |
 |---|---|---|---|
 | 2026-10-12 | 0 | Diagnóstico concluído (ver Contexto). `rastertoxqx` compila em arm64. Projeto criado em `~/hp-m1132-arm64`. | — |
+| 2026-10-12 | 1 | Estrutura criada; `rastertoxqx` e `xqxdecode` compilam arm64 sem avisos (`-Wall`). Fontes copiadas sem modificação de printer-all@b6601e3. | (este) |
