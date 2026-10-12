@@ -96,19 +96,20 @@ Meta: PPD próprio validado e o pipeline completo (PDF → raster → ZJS) funci
 
 Meta: instalar sem tocar na fila antiga, com rollback em um comando.
 
-O Claude não digita senha. Os comandos com `sudo` serão passados prontos para você rodar com `! sudo …`.
+O Claude não digita senha. Os comandos com `sudo` são passados prontos para rodar **no Terminal.app**, começando com `cd ~/hp-m1132-arm64 && sudo …` (o `! sudo` só funciona no prompt do Claude Code, não no zsh).
 
-- [ ] `scripts/install.sh` (revisado antes de rodar):
+- [x] `scripts/install.sh` (revisado antes de rodar). Uso: `make && sudo ./scripts/install.sh`
+  - confere que `rastertozjs` já está compilado e é arm64 (não compila como root);
   - `/Library/Printers/hp-m1132-arm64/rastertozjs`, dono `root:wheel`, `755` (o CUPS recusa filtros graváveis por outros usuários);
-  - `codesign --force --sign -` no binário;
-  - PPD em `/Library/Printers/PPDs/Contents/Resources/`.
-- [ ] `scripts/uninstall.sh` (rollback: remove a fila nova, o filtro e o PPD).
-- [ ] Criar a **fila nova** `M1132_arm64` com a mesma URI USB:
-  `lpadmin -p M1132_arm64 -E -v '<URI acima>' -P <ppd> -D "HP M1132 (arm64)"`
-- [ ] A fila antiga **não é removida** nesta fase.
-- [ ] Commit: `Fase 4: scripts de instalação`.
+  - `codesign --force --sign -` no binário + `codesign --verify`;
+  - PPD em `/Library/Printers/PPDs/Contents/Resources/` (`root:wheel 644`), validado com `cupstestppd` já com o filtro no lugar;
+  - URI detectada pelo `lpinfo --include-schemes usb` ou, se a impressora estiver desligada, copiada da fila antiga. `URI=…` força outra. O serial não fica no script.
+- [x] `scripts/uninstall.sh` (rollback: cancela os jobs e remove a fila nova, o filtro e o PPD).
+- [x] **Fila nova** `M1132_arm64` criada pelo próprio `install.sh` (`lpadmin -p M1132_arm64 -E -v <URI> -P <ppd> -D "HP M1132 (arm64)" -o printer-is-shared=false`). O aviso "Drivers de impressoras não são mais usados" do `lpadmin -P` é esperado e não impede nada.
+- [x] A fila antiga **não foi removida** (continua ociosa).
+- [x] Commit: `Fase 4: scripts de instalação`.
 
-**Pronto quando:** `lpstat -p M1132_arm64` mostra a fila ativa e `lipo -archs` no filtro instalado dá `arm64`.
+**Pronto quando:** `lpstat -p M1132_arm64` mostra a fila ativa e `lipo -archs` no filtro instalado dá `arm64`. ✅ Fila ociosa e ativa, filtro `arm64` com assinatura ad hoc, `device-uri` igual à fila antiga.
 
 ---
 
@@ -176,3 +177,4 @@ Meta: página impressa corretamente.
 | 2026-10-12 | 2 | **M1132 é ZjStream, não XQX.** Prova decisiva: o filtro Mac da própria HP para a série M1130/M1210 só contém `JZJZ`/`ENTER LANGUAGE` do ZJS. O hpcups (HPLIP 3.12.11) põe a M1132 no grupo `ljzjstream` da P1102; o `models.dat` (`LJZjsMono`, sem firmware) não decide; o foo2zjs não lista a M1132. Base trocada para `rastertozjs.c` Model 2 (`-z2`); `zjsdecode` vem do foo2zjs (espelho koenkooi@e04290d). Parâmetros em `docs/parametros.md`: só 600×600, margens de 12 pt (HP), `Density` numérico 1–5, Model padrão do filtro = 1 → **patch na Fase 3**. Página-régua: `scripts/make_testpage.py`. | (este) |
 | 2026-10-12 | 3 | PPD próprio (13 tamanhos, margens de 12 pt, `MediaType`, `Density` 1–5, `EconoMode`) e patch `DEFAULT_MODEL=2`. Pipeline offline OK: `DMPAPER` certo nos 13 tamanhos e opções conferidas no fluxo; a página decodificada pelo `zjsdecode -d` saiu correta. **Achados:** (1) no macOS o raster cobre só a área imprimível (A4 = 4761×6816), a mesma forma que o hpcups manda; (2) `cupsfilter -m printer/foo` ignora os filtros do PPD, então a cadeia completa só é testada na fila real; (3) `cupsFilter2` passou a usar `application/vnd.hp-zjs`; (4) 2 cópias × 2 páginas devem sair sem agrupar (1,1,2,2): conferir na Fase 6. | (este) |
 | 2026-10-12 | 3 (revisão) | Correções do `/code-review`: códigos de papel da HP via `cupsMediaType` (`Heavy` 262, `ExtraHeavy` 283); `EconoMode` `True`/`False`; filtro lê o PPD da fila (Model, padrões de `Density`/`EconoMode`/`Collate`); cópias por `argv[4]` e agrupamento feito pelo filtro (opção `Collate`); `DEFAULT_MODEL` no código com `#error`; PPD gerado por `scripts/make_ppd.py` (`make ppd`). Tudo conferido offline com `zjsdecode`. | (este) |
+| 2026-10-12 | 4 | `install.sh`/`uninstall.sh` criados; instalação feita pelo Diego no Terminal.app (`cd ~/hp-m1132-arm64 && sudo ./scripts/install.sh`; o `! sudo` dentro do zsh não serve). Fila `M1132_arm64` ativa, com a mesma URI USB, sem compartilhamento; filtro `root:wheel 755`, arm64, ad hoc; PPD da fila confere (`cupsFilter2` → filtro instalado). Fila antiga intacta. Nada foi impresso ainda: isso é a Fase 5. | (este) |
